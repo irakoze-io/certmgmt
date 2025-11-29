@@ -22,7 +22,7 @@ public class Certificate {
     private UUID id;
 
     @Column(name = "customer_id", nullable = false)
-    private UUID customerId;
+    private Long customerId;
 
     @Column(name = "template_version_id", nullable = false)
     private UUID templateVersionId;
@@ -47,10 +47,10 @@ public class Certificate {
     @Builder.Default
     private CertificateStatus status = CertificateStatus.PENDING;
 
-    @Column(name = "issued_at")
+    @Column(name = "issued_at", columnDefinition = "TIMESTAMP WITH TIME ZONE")
     private LocalDateTime issuedAt;
 
-    @Column(name = "expires_at")
+    @Column(name = "expires_at", columnDefinition = "TIMESTAMP WITH TIME ZONE")
     private LocalDateTime expiresAt;
 
     @Column(name = "issued_by")

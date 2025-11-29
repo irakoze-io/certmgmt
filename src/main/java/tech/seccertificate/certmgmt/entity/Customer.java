@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.springframework.data.relational.core.mapping.Table;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDateTime;
 
@@ -49,11 +50,13 @@ public class Customer {
     private Integer maxCertificatesPerMonth = 1_000;
 
     @CreationTimestamp
-    @Column(name = "created_date", nullable = false, updatable = false)
+    @Column(name = "created_date", columnDefinition = "DATE", nullable = false, updatable = false)
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDateTime createdDate;
 
     @UpdateTimestamp
-    @Column(name = "updated_date", nullable = false)
+    @Column(name = "updated_date", columnDefinition = "DATE", nullable = false)
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDateTime updatedDate;
 
     @Version

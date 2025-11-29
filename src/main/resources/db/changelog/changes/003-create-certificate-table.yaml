@@ -1,0 +1,121 @@
+databaseChangeLog:
+  - changeSet:
+      id: "003-create-certificate-table"
+      author: "system"
+      changes:
+        - createTable:
+            tableName: certificate
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: customer_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: template_version_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: certificate_number
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: recipient_data
+                  type: JSONB
+                  constraints:
+                    nullable: false
+              - column:
+                  name: metadata
+                  type: JSONB
+              - column:
+                  name: storage_path
+                  type: VARCHAR(500)
+              - column:
+                  name: signed_hash
+                  type: VARCHAR(512)
+              - column:
+                  name: status
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: issued_at
+                  type: TIMESTAMP WITH TIME ZONE
+              - column:
+                  name: expires_at
+                  type: TIMESTAMP WITH TIME ZONE
+              - column:
+                  name: issued_by
+                  type: UUID
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: certificate
+            baseColumnNames: customer_id
+            constraintName: fk_certificate_customer
+            referencedTableName: customer
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableName: certificate
+            baseColumnNames: template_version_id
+            constraintName: fk_certificate_template_version
+            referencedTableName: template_version
+            referencedColumnNames: id
+        - addCheckConstraint:
+            tableName: certificate
+            constraintName: chk_certificate_status
+            columnNames: status
+            checkCondition: "status IN ('PENDING', 'ISSUED', 'EXPIRED', 'REVOKED')"
+        - createIndex:
+            indexName: idx_certificate_customer_id
+            tableName: certificate
+            columns:
+              - column:
+                  name: customer_id
+        - createIndex:
+            indexName: idx_certificate_template_version_id
+            tableName: certificate
+            columns:
+              - column:
+                  name: template_version_id
+        - createIndex:
+            indexName: idx_certificate_number
+            tableName: certificate
+            columns:
+              - column:
+                  name: certificate_number
+        - createIndex:
+            indexName: idx_certificate_status
+            tableName: certificate
+            columns:
+              - column:
+                  name: status
+        - createIndex:
+            indexName: idx_certificate_issued_at
+            tableName: certificate
+            columns:
+              - column:
+                  name: issued_at
+        - createIndex:
+            indexName: idx_certificate_expires_at
+            tableName: certificate
+            columns:
+              - column:
+                  name: expires_at

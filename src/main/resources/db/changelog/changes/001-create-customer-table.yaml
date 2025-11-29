@@ -1,0 +1,84 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-customer-table
+      author: system
+      changes:
+        - createTable:
+            tableName: customer
+            schemaName: public
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: tenant_schema
+                  type: VARCHAR(75)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: name
+                  type: VARCHAR(75)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: domain
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: settings
+                  type: JSONB
+              - column:
+                  name: status
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: max_users
+                  type: INTEGER
+                  defaultValue: 10
+              - column:
+                  name: max_certs_per_month
+                  type: INTEGER
+                  defaultValue: 1000
+              - column:
+                  name: created_date
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_date
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: BIGINT
+        - addCheckConstraint:
+            tableName: customer
+            constraintName: chk_customer_status
+            columnNames: status
+            checkCondition: "status IN ('ACTIVE', 'SUSPENDED', 'TRIAL', 'CANCELLED')"
+        - createIndex:
+            tableName: customer
+            indexName: idx_customer_tenant_schema
+            columns:
+              - column:
+                  name: tenant_schema
+        - createIndex:
+            tableName: customer
+            indexName: idx_customer_domain
+            columns:
+              - column:
+                  name: domain
+        - createIndex:
+            tableName: customer
+            indexName: idx_customer_status
+            columns:
+              - column:
+                  name: status
