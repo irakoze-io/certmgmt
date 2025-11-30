@@ -24,18 +24,28 @@ databaseChangeLog:
                     nullable: false
               - column:
                   name: html_content
-                  type: text
+                  type: TEXT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: field_schema
+                  type: JSONB
                   constraints:
                     nullable: false
               - column:
                   name: css_styles
-                  type: text
+                  type: TEXT
               - column:
                   name: settings
-                  type: jsonb
+                  type: JSONB
               - column:
                   name: status
-                  type: varchar(20)
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: UUID
                   constraints:
                     nullable: false
               - column:
@@ -47,17 +57,12 @@ databaseChangeLog:
             tableName: template_version
             constraintName: chk_template_version_template_id_version
             columnNames: template_id, version
-        - addCheckConstraint:
-            tableName: template_version
-            constraintName: chk_template_version_status
-            columnNames: status
-            checkCondition: "status IN ('DRAFT', 'ACTIVE', 'ARCHIVED', 'DEPRECATED')"
         - createIndex:
-          tableName: template_version
-          indexName: idx_template_version_template_id
-          columns:
-            - column:
-                name: template_id
+            tableName: template_version
+            indexName: idx_template_version_template_id
+            columns:
+              - column:
+                  name: template_id
         - createIndex:
             tableName: template_version
             indexName: idx_template_version_status

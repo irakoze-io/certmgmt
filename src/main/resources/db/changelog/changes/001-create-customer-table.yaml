@@ -59,11 +59,6 @@ databaseChangeLog:
               - column:
                   name: version
                   type: BIGINT
-        - addCheckConstraint:
-            tableName: customer
-            constraintName: chk_customer_status
-            columnNames: status
-            checkCondition: "status IN ('ACTIVE', 'SUSPENDED', 'TRIAL', 'CANCELLED')"
         - createIndex:
             tableName: customer
             indexName: idx_customer_tenant_schema

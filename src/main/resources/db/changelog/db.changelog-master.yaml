@@ -7,3 +7,9 @@ databaseChangeLog:
       file: db/changelog/changes/003-create-certificate-table.yaml
   - include:
       file: db/changelog/changes/004-create-certificate-hash-table.yaml
+  - include:
+      file: db/changelog/changes/006-enable-uuid-ossp-extension.yaml
+  - include:
+      file: db/changelog/changes/005-create-global-audit-log-table.yaml
+  - include:
+      file: db/changelog/changes/007-create-tenant-schema-function.yaml

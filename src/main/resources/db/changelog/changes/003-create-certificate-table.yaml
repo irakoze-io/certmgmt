@@ -78,11 +78,6 @@ databaseChangeLog:
             constraintName: fk_certificate_template_version
             referencedTableName: template_version
             referencedColumnNames: id
-        - addCheckConstraint:
-            tableName: certificate
-            constraintName: chk_certificate_status
-            columnNames: status
-            checkCondition: "status IN ('PENDING', 'ISSUED', 'EXPIRED', 'REVOKED')"
         - createIndex:
             indexName: idx_certificate_customer_id
             tableName: certificate

@@ -1,0 +1,9 @@
+databaseChangeLog:
+  - changeSet:
+      id: 006-enable-uuid-ossp-extension
+      author: ivanirakoze
+      changes:
+        - sql:
+            sql: CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+      rollback:
+        sql: DROP EXTENSION IF EXISTS "uuid-ossp";
