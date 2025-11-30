@@ -67,12 +67,21 @@ public class Certificate {
     @OneToOne(mappedBy = "certificate", cascade = CascadeType.ALL)
     private CertificateHash certificateHash;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "customer_id", nullable = false, insertable = false, updatable = false)
+    private Customer customer;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "template_version_id", nullable = false, insertable = false, updatable = false)
+    private TemplateVersion templateVersion;
+
     @Getter
     public enum CertificateStatus {
         PENDING("Certificate is pending generation"),
+        PROCESSING("Certificate is being processed"),
         ISSUED("Certificate has been issued"),
-        EXPIRED("Certificate has expired"),
-        REVOKED("Certificate has been revoked");
+        REVOKED("Certificate has been revoked"),
+        FAILED("Certificate generation failed");
 
         private final String description;
 

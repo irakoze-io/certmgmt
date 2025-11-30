@@ -21,8 +21,9 @@ public class TemplateVersion {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "template_id", nullable = false)
-    private UUID templateId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "template_id", nullable = false)
+    private Template template;
 
     @Column(nullable = false)
     private Integer version;
@@ -56,9 +57,8 @@ public class TemplateVersion {
     @Getter
     public enum TemplateVersionStatus {
         DRAFT("Template version is in draft state"),
-        ACTIVE("Template version is active and published"),
-        ARCHIVED("Template version is archived"),
-        DEPRECATED("Template version is deprecated");
+        PUBLISHED("Template version is published and active"),
+        ARCHIVED("Template version is archived");
 
         private final String description;
 

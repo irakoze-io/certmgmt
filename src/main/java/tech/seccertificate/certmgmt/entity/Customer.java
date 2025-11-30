@@ -61,5 +61,8 @@ public class Customer {
     @Version
     private Long version;
 
+    @OneToMany(mappedBy = "customer", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<GlobalAuditLog> auditLogs = new java.util.ArrayList<>();
+
     public enum CustomerStatus {ACTIVE, SUSPENDED, TRIAL, CANCELLED}
 }
