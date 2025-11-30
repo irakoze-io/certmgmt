@@ -7,7 +7,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-import org.springframework.data.relational.core.mapping.Table;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDateTime;
@@ -15,9 +14,9 @@ import java.time.LocalDateTime;
 @Data
 @Entity
 @Builder
-@Table(name = "customer", schema = "public")
 @NoArgsConstructor
 @AllArgsConstructor
+@Table(name = "customer", schema = "public")
 public class Customer {
 
     @Id

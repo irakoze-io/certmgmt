@@ -7,14 +7,14 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "template_version",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"template_id", "version"}))
 @Getter
 @Setter
+@Entity
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Table(name = "template_version",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"template_id", "version"}))
 public class TemplateVersion {
 
     @Id
