@@ -31,3 +31,5 @@ build/
 
 ### VS Code ###
 .vscode/
+/TENANT_ARCHITECTURE_EXPLANATION.md
+/work_plan.md

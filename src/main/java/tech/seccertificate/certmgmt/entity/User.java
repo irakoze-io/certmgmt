@@ -20,16 +20,16 @@ import java.util.UUID;
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    @GeneratedValue(strategy = GenerationType.AUTO)
+    private Long id;
 
     @Column(name = "customer_id", nullable = false)
-    private UUID customerId;
+    private Long customerId;
 
-    @Column(unique = true, nullable = false, length = 255)
+    @Column(unique = true, nullable = false, length = 75)
     private String email;
 
-    @Column(name = "keycloak_id", unique = true, nullable = false, length = 255)
+    @Column(name = "keycloak_id", unique = true, nullable = false, length = 75)
     private String keycloakId;
 
     @Column(name = "first_name", length = 100)
@@ -38,9 +38,9 @@ public class User {
     @Column(name = "last_name", length = 100)
     private String lastName;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
-    @Builder.Default
     private UserRole role = UserRole.VIEWER;
 
     @Builder.Default

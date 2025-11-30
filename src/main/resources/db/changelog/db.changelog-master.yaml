@@ -13,3 +13,9 @@ databaseChangeLog:
       file: db/changelog/changes/005-create-global-audit-log-table.yaml
   - include:
       file: db/changelog/changes/007-create-tenant-schema-function.yaml
+  - include:
+      file: db/changelog/changes/008-update-tenant-schema-function-user-table.yaml
+  - include:
+      file: db/changelog/changes/009-create-template-table-reference.yaml
+  - include:
+      file: db/changelog/changes/010-create-audit-log-table-reference.yaml
