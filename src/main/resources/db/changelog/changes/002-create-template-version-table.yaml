@@ -1,0 +1,77 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-create-template-version-table
+      author: ivanirakoze
+      changes:
+        - createTable:
+            tableName: template_version
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: template_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: INTEGER
+                  constraints:
+                    nullable: false
+              - column:
+                  name: html_content
+                  type: TEXT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: field_schema
+                  type: JSONB
+                  constraints:
+                    nullable: false
+              - column:
+                  name: css_styles
+                  type: TEXT
+              - column:
+                  name: settings
+                  type: JSONB
+              - column:
+                  name: status
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_by
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: timestamp
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: template_version
+            constraintName: chk_template_version_template_id_version
+            columnNames: template_id, version
+        - createIndex:
+            tableName: template_version
+            indexName: idx_template_version_template_id
+            columns:
+              - column:
+                  name: template_id
+        - createIndex:
+            tableName: template_version
+            indexName: idx_template_version_status
+            columns:
+              - column:
+                  name: status
+        - createIndex:
+            tableName: template_version
+            indexName: idx_template_version_created_by
+            columns:
+              - column:
+                  name: created_by

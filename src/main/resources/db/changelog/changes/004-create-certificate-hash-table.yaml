@@ -1,0 +1,62 @@
+databaseChangeLog:
+  - changeSet:
+      id: "004-create-certificate-hash-table"
+      author: "system"
+      changes:
+        - createTable:
+            tableName: certificate_hash
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: certificate_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: hash_algorithm
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: hash_value
+                  type: VARCHAR(512)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: salt
+                  type: VARCHAR(255)
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: certificate_hash
+            baseColumnNames: certificate_id
+            constraintName: fk_certificate_hash_certificate
+            referencedTableName: certificate
+            referencedColumnNames: id
+            onDelete: CASCADE
+        - createIndex:
+            tableName: certificate_hash
+            indexName: idx_certificate_hash_certificate_id
+            columns:
+              - column:
+                  name: certificate_id
+        - createIndex:
+            tableName: certificate_hash
+            indexName: idx_certificate_hash_algorithm
+            columns:
+              - column:
+                  name: hash_algorithm
