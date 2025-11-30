@@ -1,0 +1,75 @@
+databaseChangeLog:
+  - changeSet:
+      id: 010-create-audit-log-table-reference
+      author: ivanirakoze
+      changes:
+        - comment: |
+            Reference migration for AuditLog table structure.
+            Note: This table is created per-tenant in tenant schemas via create_tenant_schema() function.
+            This migration documents the structure that matches the AuditLog entity.
+            The actual table creation happens dynamically when a tenant schema is created.
+        - createTable:
+            tableName: audit_log
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+                  defaultValueComputed: uuid_generate_v4()
+              - column:
+                  name: customer_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: UUID
+              - column:
+                  name: entity_id
+                  type: UUID
+              - column:
+                  name: entity_type
+                  type: VARCHAR(50)
+              - column:
+                  name: action
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: old_values
+                  type: JSONB
+              - column:
+                  name: new_values
+                  type: JSONB
+              - column:
+                  name: ip_address
+                  type: INET
+              - column:
+                  name: user_agent
+                  type: TEXT
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+                  defaultValueComputed: NOW()
+        - createIndex:
+            tableName: audit_log
+            indexName: idx_audit_log_created_at
+            columns:
+              - column:
+                  name: created_at
+                  descending: true
+        - createIndex:
+            tableName: audit_log
+            indexName: idx_audit_log_entity
+            columns:
+              - column:
+                  name: entity_type
+              - column:
+                  name: entity_id
+      rollback:
+        - dropTable:
+            tableName: audit_log
