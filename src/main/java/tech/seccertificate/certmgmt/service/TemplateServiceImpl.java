@@ -452,19 +452,19 @@ public class TemplateServiceImpl implements TemplateService {
 
         tenantSchemaValidator.validateTenantSchema("getNextVersionNumber");
 
-        long versionCount = templateVersionRepository.countByTemplate_Id(templateId);
+        var versionCount = templateVersionRepository.countByTemplate_Id(templateId);
 
         if (versionCount == 0) {
             return 1;
         }
 
         // Find the highest version number
-        List<TemplateVersion> versions = templateVersionRepository.findByTemplate_IdOrderByVersionDesc(templateId);
+        var versions = templateVersionRepository.findByTemplate_IdOrderByVersionDesc(templateId);
         if (versions.isEmpty()) {
             return 1;
         }
 
-        Integer maxVersion = versions.get(0).getVersion();
+        var maxVersion = versions.getFirst().getVersion();
         return maxVersion != null ? maxVersion + 1 : 1;
     }
 }
