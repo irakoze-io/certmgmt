@@ -26,9 +26,9 @@ public class Template {
     private UUID id;
 
     @Column(name = "customer_id", nullable = false)
-    private UUID customerId;
+    private Long customerId;
 
-    @Column(nullable = false, length = 255)
+    @Column(nullable = false, length = 50)
     private String name;
 
     @Column(unique = true, nullable = false, length = 100)
