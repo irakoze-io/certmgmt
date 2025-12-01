@@ -9,8 +9,8 @@ import org.springframework.stereotype.Component;
  * This is used by Hibernate to determine which schema to use for database operations.
  *
  * @author Ivan-Beaudry Irakoze
- * @since Oct 5, 2024
  * @Project AuthHub
+ * @since Oct 5, 2024
  */
 @Component
 public class TenantIdentifierResolver implements CurrentTenantIdentifierResolver {
@@ -23,13 +23,13 @@ public class TenantIdentifierResolver implements CurrentTenantIdentifierResolver
     @Override
     public String resolveCurrentTenantIdentifier() {
         String tenantSchema = TenantContext.getTenantSchema();
-        
+
         // If no tenant is set, use default (public) schema
         // This allows operations on public schema tables (Customer, GlobalAuditLog)
         if (tenantSchema == null || tenantSchema.isEmpty()) {
             return DEFAULT_TENANT_IDENTIFIER;
         }
-        
+
         return tenantSchema;
     }
 
@@ -42,8 +42,11 @@ public class TenantIdentifierResolver implements CurrentTenantIdentifierResolver
     }
 
     @Override
-    public boolean isRoot(String tenantIdentifier) {
-        // The "public" schema is considered the root schema
+    public boolean isRoot(Object o) {
+        // var tenantIdentifier = resolveCurrentTenantIdentifier();
+        if (!(o instanceof String tenantIdentifier)) {
+            return false;
+        }
         return DEFAULT_TENANT_IDENTIFIER.equals(tenantIdentifier);
     }
 }
