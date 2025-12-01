@@ -318,7 +318,7 @@ public class TemplateServiceImpl implements TemplateService {
         var existingVersion = templateVersionRepository.findById(templateVersion.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Template version not found: " + templateVersion.getId()));
 
-        Long templateId = existingVersion.getTemplate().getId();
+        var templateId = existingVersion.getTemplate().getId();
         validateTemplateVersion(templateVersion, templateId);
 
         // Version number cannot be changed
