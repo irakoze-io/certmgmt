@@ -43,15 +43,15 @@ public class ErrorResponse {
     /**
      * A URI reference that identifies the problem type.
      * This should be a stable identifier that doesn't change between occurrences.
-     * 
-     * Example: "https://api.example.com/problems/tenant-not-found"
+     * <p>
+     * Example: ""https://api.example.com/problems/tenant-not-found"
      */
     private URI type;
     
     /**
      * A short, human-readable summary of the problem type.
      * This should be the same for every occurrence of the same problem type.
-     * 
+     * <p>
      * Example: "Tenant Not Found"
      */
     private String title;
@@ -65,7 +65,7 @@ public class ErrorResponse {
     /**
      * A human-readable explanation specific to this occurrence of the problem.
      * This provides more detail than the title.
-     * 
+     * <p>
      * Example: "Customer with ID 123 does not have a tenant schema configured"
      */
     private String detail;
@@ -73,7 +73,7 @@ public class ErrorResponse {
     /**
      * A URI reference that identifies the specific occurrence of the problem.
      * This should point to the specific request that caused the error.
-     * 
+     * <p>
      * Example: "https://api.example.com/api/customers/123"
      */
     private URI instance;
