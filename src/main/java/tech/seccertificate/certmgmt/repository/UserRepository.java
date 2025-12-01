@@ -15,58 +15,20 @@ import java.util.Optional;
  */
 @Repository
 public interface UserRepository extends JpaRepository<User, Long>, UserRepositoryCustom {
-    
-    /**
-     * Find a user by email within the current tenant schema.
-     * @param email The user's email address
-     * @return Optional containing the user if found
-     */
+
     Optional<User> findByEmail(String email);
-    
-    /**
-     * Find a user by Keycloak ID within the current tenant schema.
-     * @param keycloakId The Keycloak user ID
-     * @return Optional containing the user if found
-     */
+
     Optional<User> findByKeycloakId(String keycloakId);
-    
-    /**
-     * Find all active users within the current tenant schema.
-     * @return List of active users
-     */
+
     List<User> findByActiveTrue();
-    
-    /**
-     * Find all users by role within the current tenant schema.
-     * @param role The user role
-     * @return List of users with the specified role
-     */
+
     List<User> findByRole(User.UserRole role);
-    
-    /**
-     * Find all users for a specific customer within the current tenant schema.
-     * @param customerId The customer ID
-     * @return List of users for the customer
-     */
+
     List<User> findByCustomerId(Long customerId);
-    
-    /**
-     * Check if a user with the given email exists within the current tenant schema.
-     * @param email The email to check
-     * @return true if user exists, false otherwise
-     */
+
     boolean existsByEmail(String email);
-    
-    /**
-     * Check if a user with the given Keycloak ID exists within the current tenant schema.
-     * @param keycloakId The Keycloak ID to check
-     * @return true if user exists, false otherwise
-     */
+
     boolean existsByKeycloakId(String keycloakId);
-    
-    /**
-     * Count active users within the current tenant schema.
-     * @return Number of active users
-     */
+
     long countByActiveTrue();
 }
