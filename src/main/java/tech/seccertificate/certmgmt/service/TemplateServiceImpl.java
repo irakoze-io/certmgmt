@@ -205,7 +205,6 @@ public class TemplateServiceImpl implements TemplateService {
         }
     }
 
-    // Template Version Management
     @Override
     @Transactional
     public TemplateVersion createTemplateVersion(Long templateId, TemplateVersion templateVersion) {
@@ -340,7 +339,6 @@ public class TemplateServiceImpl implements TemplateService {
         if (templateVersion.getSettings() != null) {
             existingVersion.setSettings(templateVersion.getSettings());
         }
-        // Status should be updated via specific methods (publish, archive, setDraft)
 
         var updatedVersion = templateVersionRepository.save(existingVersion);
         log.info("Template version updated successfully: {}", updatedVersion.getId());
@@ -458,7 +456,6 @@ public class TemplateServiceImpl implements TemplateService {
             return 1;
         }
 
-        // Find the highest version number
         var versions = templateVersionRepository.findByTemplate_IdOrderByVersionDesc(templateId);
         if (versions.isEmpty()) {
             return 1;
