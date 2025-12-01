@@ -787,7 +787,7 @@ class CustomerServiceImplTest {
 
     @Test
     @DisplayName("Should increment suffix when schema is taken")
-    void generateTenantSchemaName_SchemaTaken_IncrementsS uffix() {
+    void generateTenantSchemaName_SchemaTaken_IncrementsSuffix() {
         // Arrange
         when(customerRepository.existsByTenantSchema("example_com")).thenReturn(true);
         when(customerRepository.existsByTenantSchema("example_com_1")).thenReturn(false);
