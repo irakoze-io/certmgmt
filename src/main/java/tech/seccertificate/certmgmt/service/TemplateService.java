@@ -10,7 +10,9 @@ import java.util.UUID;
 /**
  * Service interface for template management operations.
  * Handles template CRUD operations, template versioning, and version validation.
- *
+ * 
+ * <p>Note: Templates are tenant-specific and require tenant context to be set.
+ * All operations operate within the current tenant schema.
  */
 public interface TemplateService {
 
@@ -29,7 +31,7 @@ public interface TemplateService {
      * @param templateId The template ID
      * @return Optional containing the template if found
      */
-    Optional<Template> findById(UUID templateId);
+    Optional<Template> findById(Long templateId);
 
     /**
      * Find a template by code.
@@ -41,6 +43,7 @@ public interface TemplateService {
 
     /**
      * Find all templates for a customer.
+     * Note: This operates within the current tenant context.
      *
      * @param customerId The customer ID
      * @return List of templates for the customer
@@ -48,7 +51,7 @@ public interface TemplateService {
     List<Template> findByCustomerId(Long customerId);
 
     /**
-     * Get all templates.
+     * Get all templates in the current tenant context.
      *
      * @return List of all templates
      */
@@ -70,10 +73,10 @@ public interface TemplateService {
      * @param templateId The template ID
      * @throws IllegalArgumentException if template not found
      */
-    void deleteTemplate(UUID templateId);
+    void deleteTemplate(Long templateId);
 
     /**
-     * Check if a template code is already in use.
+     * Check if a template code is already in use within the current tenant.
      *
      * @param code The template code to check
      * @return true if code is already in use, false otherwise
@@ -99,7 +102,7 @@ public interface TemplateService {
      * @return The created template version
      * @throws IllegalArgumentException if template not found or version data is invalid
      */
-    TemplateVersion createTemplateVersion(UUID templateId, TemplateVersion templateVersion);
+    TemplateVersion createTemplateVersion(Long templateId, TemplateVersion templateVersion);
 
     /**
      * Find a template version by ID.
@@ -116,7 +119,7 @@ public interface TemplateService {
      * @param version The version number
      * @return Optional containing the template version if found
      */
-    Optional<TemplateVersion> findVersionByTemplateIdAndVersion(UUID templateId, Integer version);
+    Optional<TemplateVersion> findVersionByTemplateIdAndVersion(Long templateId, Integer version);
 
     /**
      * Find all versions for a template.
@@ -124,7 +127,7 @@ public interface TemplateService {
      * @param templateId The template ID
      * @return List of template versions ordered by version number descending
      */
-    List<TemplateVersion> findVersionsByTemplateId(UUID templateId);
+    List<TemplateVersion> findVersionsByTemplateId(Long templateId);
 
     /**
      * Find the latest published version of a template.
@@ -132,7 +135,7 @@ public interface TemplateService {
      * @param templateId The template ID
      * @return Optional containing the latest published version if found
      */
-    Optional<TemplateVersion> findLatestPublishedVersion(UUID templateId);
+    Optional<TemplateVersion> findLatestPublishedVersion(Long templateId);
 
     /**
      * Find the current version of a template (based on template's currentVersion field).
@@ -140,7 +143,7 @@ public interface TemplateService {
      * @param templateId The template ID
      * @return Optional containing the current version if found
      */
-    Optional<TemplateVersion> findCurrentVersion(UUID templateId);
+    Optional<TemplateVersion> findCurrentVersion(Long templateId);
 
     /**
      * Update template version information.
@@ -188,7 +191,7 @@ public interface TemplateService {
      * @param templateId The template ID this version belongs to
      * @throws IllegalArgumentException if validation fails
      */
-    void validateTemplateVersion(TemplateVersion templateVersion, UUID templateId);
+    void validateTemplateVersion(TemplateVersion templateVersion, Long templateId);
 
     /**
      * Check if a version number already exists for a template.
@@ -197,7 +200,7 @@ public interface TemplateService {
      * @param version The version number to check
      * @return true if version already exists, false otherwise
      */
-    boolean isVersionExists(UUID templateId, Integer version);
+    boolean isVersionExists(Long templateId, Integer version);
 
     /**
      * Get the next version number for a template.
@@ -205,5 +208,5 @@ public interface TemplateService {
      * @param templateId The template ID
      * @return The next version number (1 if no versions exist)
      */
-    Integer getNextVersionNumber(UUID templateId);
+    Integer getNextVersionNumber(Long templateId);
 }

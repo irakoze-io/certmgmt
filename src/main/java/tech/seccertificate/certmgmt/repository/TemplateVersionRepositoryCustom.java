@@ -10,9 +10,9 @@ public interface TemplateVersionRepositoryCustom {
 
     void setTenantSchema(String tenantSchema);
 
-    Optional<TemplateVersion> findByTemplateIdAndVersionInSchema(String tenantSchema, UUID templateId, Integer version);
+    Optional<TemplateVersion> findByTemplateIdAndVersionInSchema(String tenantSchema, Long templateId, Integer version);
 
-    List<TemplateVersion> findByTemplateIdInSchema(String tenantSchema, UUID templateId);
+    List<TemplateVersion> findByTemplateIdInSchema(String tenantSchema, Long templateId);
 
     List<TemplateVersion> findAllInSchema(String tenantSchema);
 

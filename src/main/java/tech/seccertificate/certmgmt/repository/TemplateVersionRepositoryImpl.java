@@ -34,7 +34,7 @@ public class TemplateVersionRepositoryImpl implements TemplateVersionRepositoryC
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<TemplateVersion> findByTemplateIdAndVersionInSchema(String tenantSchema, UUID templateId, Integer version) {
+    public Optional<TemplateVersion> findByTemplateIdAndVersionInSchema(String tenantSchema, Long templateId, Integer version) {
         setTenantSchema(tenantSchema);
         String jpql = "SELECT tv FROM TemplateVersion tv WHERE tv.template.id = :templateId AND tv.version = :version";
         TypedQuery<TemplateVersion> query = entityManager.createQuery(jpql, TemplateVersion.class);
@@ -51,7 +51,7 @@ public class TemplateVersionRepositoryImpl implements TemplateVersionRepositoryC
 
     @Override
     @Transactional(readOnly = true)
-    public List<TemplateVersion> findByTemplateIdInSchema(String tenantSchema, UUID templateId) {
+    public List<TemplateVersion> findByTemplateIdInSchema(String tenantSchema, Long templateId) {
         setTenantSchema(tenantSchema);
         String jpql = "SELECT tv FROM TemplateVersion tv WHERE tv.template.id = :templateId ORDER BY tv.version DESC";
         TypedQuery<TemplateVersion> query = entityManager.createQuery(jpql, TemplateVersion.class);
