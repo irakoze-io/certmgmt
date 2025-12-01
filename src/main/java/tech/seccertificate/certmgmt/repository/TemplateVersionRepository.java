@@ -11,17 +11,17 @@ import java.util.UUID;
 @Repository
 public interface TemplateVersionRepository extends JpaRepository<TemplateVersion, UUID>, TemplateVersionRepositoryCustom {
 
-    Optional<TemplateVersion> findByTemplateIdAndVersion(UUID templateId, Integer version);
+    Optional<TemplateVersion> findByTemplate_IdAndVersion(Long templateId, Integer version);
 
-    List<TemplateVersion> findByTemplateId(UUID templateId);
+    List<TemplateVersion> findByTemplate_Id(Long templateId);
 
     List<TemplateVersion> findByStatus(TemplateVersion.TemplateVersionStatus status);
 
-    List<TemplateVersion> findByTemplateIdOrderByVersionDesc(UUID templateId);
+    List<TemplateVersion> findByTemplate_IdOrderByVersionDesc(Long templateId);
 
-    Optional<TemplateVersion> findFirstByTemplateIdAndStatusOrderByVersionDesc(UUID templateId, TemplateVersion.TemplateVersionStatus status);
+    Optional<TemplateVersion> findFirstByTemplate_IdAndStatusOrderByVersionDesc(Long templateId, TemplateVersion.TemplateVersionStatus status);
 
-    long countByTemplateId(UUID templateId);
+    long countByTemplate_Id(Long templateId);
 
-    boolean existsByTemplateIdAndVersion(UUID templateId, Integer version);
+    boolean existsByTemplate_IdAndVersion(Long templateId, Integer version);
 }

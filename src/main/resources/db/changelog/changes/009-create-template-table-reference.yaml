@@ -2,6 +2,8 @@ databaseChangeLog:
   - changeSet:
       id: 009-create-template-table-reference
       author: ivanirakoze
+      validCheckSums:
+        - 9:cc68f660a1cd4e7469adb5d81b10a40c
       changes:
         - comment: |
             Reference migration for Template table structure.
@@ -13,14 +15,13 @@ databaseChangeLog:
             columns:
               - column:
                   name: id
-                  type: UUID
+                  type: BIGSERIAL
                   constraints:
                     primaryKey: true
                     nullable: false
-                  defaultValueComputed: uuid_generate_v4()
               - column:
                   name: customer_id
-                  type: UUID
+                  type: BIGINT
                   constraints:
                     nullable: false
               - column:
