@@ -2,68 +2,48 @@ package tech.seccertificate.certmgmt.config;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import org.hibernate.Session;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Interceptor/Helper class to manage tenant schema switching for JPA operations.
- * This ensures that all database operations use the correct tenant schema.
+ * Helper class to execute operations within a specific tenant schema context.
+ * With Hibernate multi-tenancy configured, this mainly manages TenantContext
+ * while Hibernate handles the actual schema switching.
+ *
+ * @author Ivan-Beaudry Irakoze
+ * @since Oct 5, 2024
+ * @Project AuthHub
  */
 @Component
+@Slf4j
 public class TenantSchemaInterceptor {
     
     @PersistenceContext
     private EntityManager entityManager;
 
+    /**
+     * Execute an operation within a specific tenant schema context.
+     * The schema is set in TenantContext, and Hibernate's multi-tenancy
+     * will automatically use the correct schema for database operations.
+     * 
+     * @param tenantSchema The tenant schema name
+     * @param operation The operation to execute
+     * @return The result of the operation
+     */
     @Transactional
     public <T> T executeInSchema(String tenantSchema, java.util.function.Function<EntityManager, T> operation) {
         String previousSchema = TenantContext.getTenantSchema();
         try {
-            setSchema(tenantSchema);
             TenantContext.setTenantSchema(tenantSchema);
+            log.debug("Executing operation in tenant schema: {}", tenantSchema);
             return operation.apply(entityManager);
         } finally {
             if (previousSchema != null) {
-                setSchema(previousSchema);
                 TenantContext.setTenantSchema(previousSchema);
             } else {
                 TenantContext.clear();
             }
         }
-    }
-
-    private void setSchema(String schemaName) {
-        if (schemaName == null || schemaName.isEmpty()) {
-            return;
-        }
-        
-        // Sanitize schema name
-        String sanitized = sanitizeSchemaName(schemaName);
-        
-        // Set search_path for PostgreSQL
-        Session session = entityManager.unwrap(Session.class);
-        session.doWork(connection -> {
-            try (var statement = connection.createStatement()) {
-                statement.execute("SET search_path TO " + sanitized + ", public");
-            }
-        });
-    }
-    
-    /**
-     * Sanitize schema name to prevent SQL injection.
-     * @param schemaName The schema name to sanitize
-     * @return Sanitized schema name
-     */
-    private String sanitizeSchemaName(String schemaName) {
-        if (schemaName == null || schemaName.isEmpty()) {
-            throw new IllegalArgumentException("Schema name cannot be null or empty");
-        }
-        // Only allow alphanumeric characters and underscores
-        String sanitized = schemaName.replaceAll("[^a-zA-Z0-9_]", "");
-        if (sanitized.isEmpty()) {
-            throw new IllegalArgumentException("Schema name must contain at least one valid character");
-        }
-        return sanitized;
     }
 }
