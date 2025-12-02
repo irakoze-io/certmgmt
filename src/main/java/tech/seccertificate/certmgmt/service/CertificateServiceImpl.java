@@ -9,7 +9,6 @@ import tech.seccertificate.certmgmt.config.TenantContext;
 import tech.seccertificate.certmgmt.config.TenantSchemaValidator;
 import tech.seccertificate.certmgmt.entity.Certificate;
 import tech.seccertificate.certmgmt.entity.CertificateHash;
-import tech.seccertificate.certmgmt.entity.Customer;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
 import tech.seccertificate.certmgmt.exception.CustomerNotFoundException;
 import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
