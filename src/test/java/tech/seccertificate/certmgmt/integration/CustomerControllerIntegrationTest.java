@@ -45,35 +45,40 @@ class CustomerControllerIntegrationTest extends BaseIntegrationTest {
     @Test
     @DisplayName("POST /api/customers - Should create a new customer")
     void createCustomer_ValidRequest_ReturnsCreated() throws Exception {
-        // Arrange
+        // Arrange - use unique schema name to avoid conflicts
+        String uniqueSchema = "test_customer_" + System.currentTimeMillis();
         CreateCustomerRequest request = CreateCustomerRequest.builder()
                 .name("Test Customer")
-                .domain("test.example.com")
-                .tenantSchema("test_customer")
+                .domain("test" + System.currentTimeMillis() + ".example.com")
+                .tenantSchema(uniqueSchema)
                 .maxUsers(10)
                 .maxCertificatesPerMonth(1000)
                 .build();
 
         // Act & Assert
-        ResultActions result = mockMvc.perform(post("/api/customers")
+        var resultActions = mockMvc.perform(post("/api/customers")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andDo(print());
         
-        // Print response for debugging if test fails
-        String responseBody = result.andReturn().getResponse().getContentAsString();
-        int status = result.andReturn().getResponse().getStatus();
-        if (status != 201) {
-            System.out.println("Response Status: " + status);
-            System.out.println("Response Body: " + responseBody);
-        }
+        // Capture response for debugging
+        var mvcResult = resultActions.andReturn();
+        String responseBody = mvcResult.getResponse().getContentAsString();
+        int status = mvcResult.getResponse().getStatus();
         
-        result.andExpect(status().isCreated())
+        // Print to stderr so it shows in test output
+        System.err.println("\n========== RESPONSE DEBUG ==========");
+        System.err.println("Status: " + status);
+        System.err.println("Body: " + responseBody);
+        System.err.println("=====================================\n");
+        
+        // Now assert
+        resultActions.andExpect(status().isCreated())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.name").value("Test Customer"))
                 .andExpect(jsonPath("$.domain").value("test.example.com"))
-                .andExpect(jsonPath("$.tenantSchema").value("test_customer"))
+                .andExpect(jsonPath("$.tenantSchema").value(uniqueSchema))
                 .andExpect(jsonPath("$.status").value("ACTIVE"))
                 .andExpect(header().exists("Location"));
 
@@ -84,7 +89,7 @@ class CustomerControllerIntegrationTest extends BaseIntegrationTest {
                 .isPresent()
                 .hasValueSatisfying(customer -> {
                     assertThat(customer.getName()).isEqualTo("Test Customer");
-                    assertThat(customer.getTenantSchema()).isEqualTo("test_customer");
+                    assertThat(customer.getTenantSchema()).isEqualTo(uniqueSchema);
                 });
     }
 
