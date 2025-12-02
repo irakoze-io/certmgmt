@@ -408,7 +408,19 @@ public class CertificateServiceImpl implements CertificateService {
     @Transactional
     public Certificate markAsFailed(UUID certificateId, String errorMessage) {
         tenantSchemaValidator.validateTenantSchema("markAsFailed");
+        return markAsFailedInternal(certificateId, errorMessage);
+    }
 
+    /**
+     * Internal helper method to mark certificate as failed.
+     * This method does not have @Transactional to avoid self-invocation issues
+     * when called from within an existing transaction.
+     *
+     * @param certificateId The certificate ID
+     * @param errorMessage Optional error message to store in metadata
+     * @return The failed certificate
+     */
+    private Certificate markAsFailedInternal(UUID certificateId, String errorMessage) {
         var certificate = certificateRepository.findById(certificateId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Certificate not found with ID: " + certificateId
@@ -695,7 +707,8 @@ public class CertificateServiceImpl implements CertificateService {
             log.info("Certificate generation completed for ID: {}", certificate.getId());
         } catch (Exception e) {
             log.error("Failed to process certificate generation for ID: {}", certificate.getId(), e);
-            markAsFailed(certificate.getId(), e.getMessage());
+            // Use internal helper to avoid @Transactional self-invocation warning
+            markAsFailedInternal(certificate.getId(), e.getMessage());
             throw new RuntimeException("Certificate generation failed", e);
         }
     }
