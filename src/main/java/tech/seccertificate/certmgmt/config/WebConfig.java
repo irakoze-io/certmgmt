@@ -25,7 +25,13 @@ public class WebConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/actuator/**",
                         "/error",
-                        "/favicon.ico"
+                        "/favicon.ico",
+                        // OpenAPI/Scalar documentation paths
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/scalar",
+                        "/scalar/**"
                 );
     }
 }
