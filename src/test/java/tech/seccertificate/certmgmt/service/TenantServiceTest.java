@@ -365,7 +365,7 @@ class TenantServiceTest {
 
     @Test
     @DisplayName("Should return false when schema name is null")
-    void validateSchemaExists_NullSchema_ReturnsFalse() {
+    void validateSchemaExists_NullSchema_ReturnsFalse() throws SQLException {
         // Act
         boolean result = tenantService.validateSchemaExists(null);
 
@@ -376,7 +376,7 @@ class TenantServiceTest {
 
     @Test
     @DisplayName("Should return false when schema name is empty")
-    void validateSchemaExists_EmptySchema_ReturnsFalse() {
+    void validateSchemaExists_EmptySchema_ReturnsFalse() throws SQLException {
         // Act
         boolean result = tenantService.validateSchemaExists("");
 
