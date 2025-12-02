@@ -35,7 +35,7 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
         cleanup();
         initMockMvc();
         // Use unique schema and domain to avoid conflicts
-        long timestamp = System.currentTimeMillis();
+        var timestamp = System.currentTimeMillis();
         uniqueSchema = "test_customer_" + timestamp;
         uniqueDomain = "test" + timestamp + ".example.com";
         testCustomer = createTestCustomer("Test Customer", uniqueDomain, uniqueSchema);
@@ -51,8 +51,8 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
     @DisplayName("POST /api/templates - Should create a new template")
     void createTemplate_ValidRequest_ReturnsCreated() throws Exception {
         // Arrange
-        String uniqueCode = "TEST_TEMPLATE_" + System.currentTimeMillis();
-        TemplateDTO templateDTO = TemplateDTO.builder()
+        var uniqueCode = "TEST_TEMPLATE_" + System.currentTimeMillis();
+        var templateDTO = TemplateDTO.builder()
                 .customerId(testCustomer.getId())
                 .name("Test Template")
                 .code(uniqueCode)
@@ -61,7 +61,7 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
                 .build();
 
         // Act & Assert
-        ResultActions result = mockMvc.perform(
+        var result = mockMvc.perform(
                         withTenantHeader(post("/api/templates"), testCustomer.getId())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(templateDTO)))
@@ -75,8 +75,8 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
                 .andExpect(header().exists("Location"));
 
         // Verify template was created
-        String responseBody = result.andReturn().getResponse().getContentAsString();
-        TemplateDTO createdTemplate = objectMapper.readValue(responseBody, TemplateDTO.class);
+        var responseBody = result.andReturn().getResponse().getContentAsString();
+        var createdTemplate = objectMapper.readValue(responseBody, TemplateDTO.class);
         
         assertThat(createdTemplate.getId()).isNotNull();
     }
@@ -87,14 +87,14 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
         // Arrange - create template via service first
         setTenantContext(testCustomer.getId());
         String uniqueCode = "TEST_TEMPLATE_" + System.currentTimeMillis();
-        Template template = Template.builder()
+        var template = Template.builder()
                 .customerId(testCustomer.getId())
                 .name("Test Template")
                 .code(uniqueCode)
                 .description("A test template")
                 .metadata("{}")
                 .build();
-        Template createdTemplate = templateService.createTemplate(template);
+        var createdTemplate = templateService.createTemplate(template);
 
         // Act & Assert
         mockMvc.perform(
@@ -122,14 +122,14 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
     void getAllTemplates_ReturnsAllTemplates() throws Exception {
         // Arrange - create some templates
         setTenantContext(testCustomer.getId());
-        long timestamp = System.currentTimeMillis();
-        Template template1 = Template.builder()
+        var timestamp = System.currentTimeMillis();
+        var template1 = Template.builder()
                 .customerId(testCustomer.getId())
                 .name("Template 1")
                 .code("TEMPLATE_1_" + timestamp)
                 .metadata("{}")
                 .build();
-        Template template2 = Template.builder()
+        var template2 = Template.builder()
                 .customerId(testCustomer.getId())
                 .name("Template 2")
                 .code("TEMPLATE_2_" + timestamp)
@@ -153,8 +153,8 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
     void getTemplateByCode_ValidCode_ReturnsTemplate() throws Exception {
         // Arrange - create template via service
         setTenantContext(testCustomer.getId());
-        String uniqueCode = "TEST_TEMPLATE_" + System.currentTimeMillis();
-        Template template = Template.builder()
+        var uniqueCode = "TEST_TEMPLATE_" + System.currentTimeMillis();
+        var template = Template.builder()
                 .customerId(testCustomer.getId())
                 .name("Test Template")
                 .code(uniqueCode)
@@ -188,18 +188,18 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
     void updateTemplate_ValidRequest_ReturnsUpdated() throws Exception {
         // Arrange - create template first
         setTenantContext(testCustomer.getId());
-        String uniqueCode = "TEST_TEMPLATE_" + System.currentTimeMillis();
-        Template template = Template.builder()
+        var uniqueCode = "TEST_TEMPLATE_" + System.currentTimeMillis();
+        var template = Template.builder()
                 .customerId(testCustomer.getId())
                 .name("Original Name")
                 .code(uniqueCode)
                 .description("Original description")
                 .metadata("{}")
                 .build();
-        Template createdTemplate = templateService.createTemplate(template);
+        var createdTemplate = templateService.createTemplate(template);
 
         // Prepare update DTO
-        TemplateDTO updateDTO = TemplateDTO.builder()
+        var updateDTO = TemplateDTO.builder()
                 .id(createdTemplate.getId())
                 .customerId(testCustomer.getId())
                 .name("Updated Name")
@@ -225,7 +225,7 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
     @DisplayName("PUT /api/templates/{id} - Should return 404 for non-existent template")
     void updateTemplate_NonExistentId_ReturnsNotFound() throws Exception {
         // Arrange
-        TemplateDTO updateDTO = TemplateDTO.builder()
+        var updateDTO = TemplateDTO.builder()
                 .id(99999L)
                 .customerId(testCustomer.getId())
                 .name("Updated Name")
@@ -246,14 +246,14 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
     void deleteTemplate_ValidId_ReturnsNoContent() throws Exception {
         // Arrange - create template first
         setTenantContext(testCustomer.getId());
-        String uniqueCode = "TEST_TEMPLATE_" + System.currentTimeMillis();
-        Template template = Template.builder()
+        var uniqueCode = "TEST_TEMPLATE_" + System.currentTimeMillis();
+        var template = Template.builder()
                 .customerId(testCustomer.getId())
                 .name("Test Template")
                 .code(uniqueCode)
                 .metadata("{}")
                 .build();
-        Template createdTemplate = templateService.createTemplate(template);
+        var createdTemplate = templateService.createTemplate(template);
 
         // Act & Assert
         mockMvc.perform(
@@ -280,7 +280,7 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
     @DisplayName("POST /api/templates - Should fail with invalid request")
     void createTemplate_InvalidRequest_ReturnsBadRequest() throws Exception {
         // Arrange - missing required fields
-        TemplateDTO templateDTO = TemplateDTO.builder()
+        var templateDTO = TemplateDTO.builder()
                 .name("") // Invalid: empty name
                 .code("") // Invalid: empty code
                 .build();

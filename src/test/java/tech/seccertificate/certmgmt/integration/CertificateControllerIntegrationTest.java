@@ -38,7 +38,7 @@ class CertificateControllerIntegrationTest extends BaseIntegrationTest {
     @DisplayName("POST /api/certificates - Should generate certificate")
     void generateCertificate_ValidRequest_ReturnsCreated() throws Exception {
         // Arrange
-        GenerateCertificateRequest request = GenerateCertificateRequest.builder()
+        var request = GenerateCertificateRequest.builder()
                 .templateVersionId(UUID.randomUUID())
                 .certificateNumber("CERT-001")
                 .recipientData(Map.of(

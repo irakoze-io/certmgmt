@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
@@ -93,8 +94,8 @@ public abstract class BaseIntegrationTest {
     /**
      * Add X-Tenant-Id header to request builder.
      */
-    protected org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder withTenantHeader(
-            org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder builder,
+    protected MockHttpServletRequestBuilder withTenantHeader(
+            MockHttpServletRequestBuilder builder,
             Long customerId) {
         return builder.header("X-Tenant-Id", customerId.toString());
     }
@@ -102,8 +103,8 @@ public abstract class BaseIntegrationTest {
     /**
      * Add X-Tenant-Schema header to request builder.
      */
-    protected org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder withTenantSchemaHeader(
-            org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder builder,
+    protected MockHttpServletRequestBuilder withTenantSchemaHeader(
+            MockHttpServletRequestBuilder builder,
             String schemaName) {
         return builder.header("X-Tenant-Schema", schemaName);
     }

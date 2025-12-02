@@ -38,7 +38,7 @@ class TemplateVersionControllerIntegrationTest extends BaseIntegrationTest {
     @DisplayName("POST /api/templates/{templateId}/versions - Should create template version")
     void createTemplateVersion_ValidRequest_ReturnsCreated() throws Exception {
         // Arrange
-        TemplateVersionDTO versionDTO = TemplateVersionDTO.builder()
+        var versionDTO = TemplateVersionDTO.builder()
                 .version(1)
                 .htmlContent("<html><body>Test</body></html>")
                 .fieldSchema(Map.of("name", "string", "email", "string"))
@@ -55,9 +55,9 @@ class TemplateVersionControllerIntegrationTest extends BaseIntegrationTest {
                                 .content(objectMapper.writeValueAsString(versionDTO)))
                 .andDo(print())
                 .andReturn();
-        
+
         // Accept either success or client error (template may not exist)
-        int status = result.getResponse().getStatus();
+        var status = result.getResponse().getStatus();
         assertThat(status).isBetween(200, 499); // Accept any 2xx or 4xx status
     }
 

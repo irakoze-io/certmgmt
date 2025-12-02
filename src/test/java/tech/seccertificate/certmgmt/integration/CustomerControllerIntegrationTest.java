@@ -46,9 +46,9 @@ class CustomerControllerIntegrationTest extends BaseIntegrationTest {
     @DisplayName("POST /api/customers - Should create a new customer")
     void createCustomer_ValidRequest_ReturnsCreated() throws Exception {
         // Arrange - use unique schema name to avoid conflicts
-        String uniqueSchema = "test_customer_" + System.currentTimeMillis();
-        String uniqueDomain = "test" + System.currentTimeMillis() + ".example.com";
-        CreateCustomerRequest request = CreateCustomerRequest.builder()
+        var uniqueSchema = "TST_CUS" + System.currentTimeMillis();
+        var uniqueDomain = "test" + System.currentTimeMillis() + ".example.com";
+        var request = CreateCustomerRequest.builder()
                 .name("Test Customer")
                 .domain(uniqueDomain)
                 .tenantSchema(uniqueSchema)
@@ -64,7 +64,7 @@ class CustomerControllerIntegrationTest extends BaseIntegrationTest {
         
         // Capture response for debugging
         var mvcResult = resultActions.andReturn();
-        String responseBody = mvcResult.getResponse().getContentAsString();
+        var responseBody = mvcResult.getResponse().getContentAsString();
         
         // Now assert
         resultActions.andExpect(status().isCreated())
@@ -77,7 +77,7 @@ class CustomerControllerIntegrationTest extends BaseIntegrationTest {
                 .andExpect(header().exists("Location"));
 
         // Verify customer was created in database
-        CustomerDTO createdCustomer = objectMapper.readValue(responseBody, CustomerDTO.class);
+        var createdCustomer = objectMapper.readValue(responseBody, CustomerDTO.class);
         
         assertThat(customerRepository.findById(createdCustomer.getId()))
                 .isPresent()
@@ -91,7 +91,7 @@ class CustomerControllerIntegrationTest extends BaseIntegrationTest {
     @DisplayName("POST /api/customers - Should fail with invalid request")
     void createCustomer_InvalidRequest_ReturnsBadRequest() throws Exception {
         // Arrange - missing required fields
-        CreateCustomerRequest request = CreateCustomerRequest.builder()
+        var request = CreateCustomerRequest.builder()
                 .name("") // Invalid: empty name
                 .domain("") // Invalid: empty domain
                 .build();
@@ -108,9 +108,9 @@ class CustomerControllerIntegrationTest extends BaseIntegrationTest {
     @DisplayName("GET /api/customers/{id} - Should return customer by ID")
     void getCustomer_ValidId_ReturnsCustomer() throws Exception {
         // Arrange - use unique schema name to avoid conflicts
-        String uniqueSchema = "test_customer_" + System.currentTimeMillis();
-        String uniqueDomain = "test" + System.currentTimeMillis() + ".example.com";
-        Customer customer = createTestCustomer("Test Customer", uniqueDomain, uniqueSchema);
+        var uniqueSchema = "test_customer_" + System.currentTimeMillis();
+        var uniqueDomain = "test" + System.currentTimeMillis() + ".example.com";
+        var customer = createTestCustomer("Test Customer", uniqueDomain, uniqueSchema);
 
         // Act & Assert
         mockMvc.perform(get("/api/customers/{id}", customer.getId()))
@@ -135,13 +135,13 @@ class CustomerControllerIntegrationTest extends BaseIntegrationTest {
     @DisplayName("GET /api/customers - Should return all customers")
     void getAllCustomers_ReturnsAllCustomers() throws Exception {
         // Arrange - use unique schema names to avoid conflicts
-        long timestamp = System.currentTimeMillis();
-        String schema1 = "customer1_" + timestamp;
-        String schema2 = "customer2_" + timestamp;
-        String domain1 = "customer1" + timestamp + ".example.com";
-        String domain2 = "customer2" + timestamp + ".example.com";
-        Customer customer1 = createTestCustomer("Customer 1", domain1, schema1);
-        Customer customer2 = createTestCustomer("Customer 2", domain2, schema2);
+        var timestamp = System.currentTimeMillis();
+        var schema1 = "customer1_" + timestamp;
+        var schema2 = "customer2_" + timestamp;
+        var domain1 = "customer1" + timestamp + ".example.com";
+        var domain2 = "customer2" + timestamp + ".example.com";
+        var customer1 = createTestCustomer("Customer 1", domain1, schema1);
+        var customer2 = createTestCustomer("Customer 2", domain2, schema2);
 
         // Act & Assert
         mockMvc.perform(get("/api/customers"))
