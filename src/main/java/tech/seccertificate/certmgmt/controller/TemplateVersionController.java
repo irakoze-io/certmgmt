@@ -284,7 +284,8 @@ public class TemplateVersionController {
         Map<String, Object> fieldSchema = null;
         if (version.getFieldSchema() != null && !version.getFieldSchema().isEmpty()) {
             try {
-                fieldSchema = objectMapper.readValue(version.getFieldSchema(), new TypeReference<Map<String, Object>>() {});
+                fieldSchema = objectMapper.readValue(version.getFieldSchema(), new TypeReference<>() {
+                });
             } catch (Exception e) {
                 log.warn("Failed to parse fieldSchema JSON for version {}: {}", version.getId(), e.getMessage());
                 fieldSchema = Map.of();
@@ -294,7 +295,8 @@ public class TemplateVersionController {
         Map<String, Object> settings = null;
         if (version.getSettings() != null && !version.getSettings().isEmpty()) {
             try {
-                settings = objectMapper.readValue(version.getSettings(), new TypeReference<Map<String, Object>>() {});
+                settings = objectMapper.readValue(version.getSettings(), new TypeReference<>() {
+                });
             } catch (Exception e) {
                 log.warn("Failed to parse settings JSON for version {}: {}", version.getId(), e.getMessage());
                 settings = Map.of();

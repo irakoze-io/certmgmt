@@ -6,7 +6,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -186,7 +185,8 @@ public class TemplateController {
         Map<String, Object> metadata = null;
         if (template.getMetadata() != null && !template.getMetadata().isEmpty()) {
             try {
-                metadata = objectMapper.readValue(template.getMetadata(), new TypeReference<Map<String, Object>>() {});
+                metadata = objectMapper.readValue(template.getMetadata(), new TypeReference<>() {
+                });
             } catch (Exception e) {
                 log.warn("Failed to parse metadata JSON for template {}: {}", template.getId(), e.getMessage());
                 metadata = Map.of();
