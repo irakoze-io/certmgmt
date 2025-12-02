@@ -40,3 +40,7 @@ build/
 .vscode/
 /TENANT_ARCHITECTURE_EXPLANATION.md
 /work_plan.md
+
+postgres-data/
+
+*.sh
