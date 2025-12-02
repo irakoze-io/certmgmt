@@ -1,0 +1,51 @@
+databaseChangeLog:
+  - changeSet:
+      id: 005-create-global-audit-log-table
+      author: ivanirakoze
+      changes:
+        - createTable:
+            tableName: global_audit_log
+            schemaName: public
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+                  defaultValueComputed: uuid_generate_v4()
+              - column:
+                  name: customer_id
+                  type: BIGSERIAL
+              - column:
+                  name: action
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: details
+                  type: JSONB
+              - column:
+                  name: ip_address
+                  type: INET
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+                  defaultValueComputed: NOW()
+        - addForeignKeyConstraint:
+            baseTableName: global_audit_log
+            baseColumnNames: customer_id
+            constraintName: fk_global_audit_log_customer
+            referencedTableName: customer
+            referencedColumnNames: id
+        - createIndex:
+            tableName: global_audit_log
+            indexName: idx_global_audit_customer
+            columns:
+              - column:
+                  name: customer_id
+              - column:
+                  name: created_at
+                  descending: true

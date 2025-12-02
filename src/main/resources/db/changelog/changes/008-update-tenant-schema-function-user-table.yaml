@@ -1,0 +1,129 @@
+databaseChangeLog:
+  - changeSet:
+      id: 008-update-tenant-schema-function-user-table
+      author: ivanirakoze
+      changes:
+        - sql:
+            sql: |
+              -- Update tenant schema function to reflect entity changes:
+              -- 1. User table: id and customer_id changed from UUID to BIGSERIAL/BIGINT for consistency
+              -- 2. User table: email and keycloak_id changed from VARCHAR(255) to VARCHAR(75)
+              -- 3. All tenant tables (users, template, template_version, certificate, certificate_hash, audit_log) included
+              CREATE OR REPLACE FUNCTION create_tenant_schema(schema_name VARCHAR) 
+              RETURNS VOID AS $function$
+              BEGIN
+                  EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I', schema_name);
+                  
+                  -- Users table (updated: id BIGSERIAL, customer_id BIGINT, email/keycloak_id VARCHAR(75))
+                  EXECUTE format('
+                      CREATE TABLE %I.users (
+                          id BIGSERIAL PRIMARY KEY,
+                          customer_id BIGINT NOT NULL,
+                          email VARCHAR(75) UNIQUE NOT NULL,
+                          keycloak_id VARCHAR(75) UNIQUE NOT NULL,
+                          first_name VARCHAR(100),
+                          last_name VARCHAR(100),
+                          role VARCHAR(50) NOT NULL DEFAULT ''VIEWER'',
+                          active BOOLEAN DEFAULT TRUE,
+                          last_login TIMESTAMP,
+                          created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                          updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                          CONSTRAINT chk_role CHECK (role IN (''ADMIN'', ''EDITOR'', ''VIEWER'', ''API_CLIENT''))
+                      )', schema_name);
+                  
+                  -- Templates table
+                  EXECUTE format('
+                      CREATE TABLE %I.template (
+                          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                          customer_id UUID NOT NULL,
+                          name VARCHAR(255) NOT NULL,
+                          code VARCHAR(100) UNIQUE NOT NULL,
+                          description TEXT,
+                          current_version INTEGER DEFAULT 1,
+                          metadata JSONB DEFAULT ''{}''::jsonb,
+                          created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                          updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+                      )', schema_name);
+                  
+                  -- Template versions table
+                  EXECUTE format('
+                      CREATE TABLE %I.template_version (
+                          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                          template_id UUID NOT NULL REFERENCES %I.template(id) ON DELETE CASCADE,
+                          version INTEGER NOT NULL,
+                          html_content TEXT NOT NULL,
+                          field_schema JSONB NOT NULL,
+                          css_styles TEXT,
+                          settings JSONB DEFAULT ''{}''::jsonb,
+                          status VARCHAR(20) NOT NULL DEFAULT ''DRAFT'',
+                          created_by UUID NOT NULL,
+                          created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                          CONSTRAINT uq_template_version UNIQUE (template_id, version),
+                          CONSTRAINT chk_version_status CHECK (status IN (''DRAFT'', ''PUBLISHED'', ''ARCHIVED''))
+                      )', schema_name, schema_name);
+                  
+                  -- Certificates table
+                  EXECUTE format('
+                      CREATE TABLE %I.certificate (
+                          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                          customer_id UUID NOT NULL,
+                          template_version_id UUID NOT NULL REFERENCES %I.template_version(id),
+                          certificate_number VARCHAR(100) UNIQUE NOT NULL,
+                          recipient_data JSONB NOT NULL,
+                          metadata JSONB DEFAULT ''{}''::jsonb,
+                          storage_path VARCHAR(500),
+                          signed_hash VARCHAR(512),
+                          status VARCHAR(20) NOT NULL DEFAULT ''PENDING'',
+                          issued_at TIMESTAMP,
+                          expires_at TIMESTAMP,
+                          issued_by UUID,
+                          created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                          updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                          CONSTRAINT chk_certificate_status CHECK (status IN (''PENDING'', ''PROCESSING'', ''ISSUED'', ''REVOKED'', ''FAILED''))
+                      )', schema_name, schema_name);
+                  
+                  -- Certificate hash table
+                  EXECUTE format('
+                      CREATE TABLE %I.certificate_hash (
+                          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                          certificate_id UUID UNIQUE NOT NULL REFERENCES %I.certificate(id) ON DELETE CASCADE,
+                          hash_algorithm VARCHAR(20) NOT NULL DEFAULT ''SHA256'',
+                          content_hash VARCHAR(128) NOT NULL,
+                          signature TEXT NOT NULL,
+                          public_key TEXT NOT NULL,
+                          created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                      )', schema_name, schema_name);
+                  
+                  -- Audit log table
+                  EXECUTE format('
+                      CREATE TABLE %I.audit_log (
+                          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                          customer_id UUID NOT NULL,
+                          user_id UUID,
+                          entity_id UUID,
+                          entity_type VARCHAR(50),
+                          action VARCHAR(50) NOT NULL,
+                          old_values JSONB,
+                          new_values JSONB,
+                          ip_address INET,
+                          user_agent TEXT,
+                          created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                      )', schema_name);
+                  
+                  -- Create indexes
+                  EXECUTE format('CREATE INDEX idx_%I_users_customer ON %I.users(customer_id)', schema_name, schema_name);
+                  EXECUTE format('CREATE INDEX idx_%I_users_email ON %I.users(email)', schema_name, schema_name);
+                  EXECUTE format('CREATE INDEX idx_%I_template_customer ON %I.template(customer_id)', schema_name, schema_name);
+                  EXECUTE format('CREATE INDEX idx_%I_template_code ON %I.template(code)', schema_name, schema_name);
+                  EXECUTE format('CREATE INDEX idx_%I_cert_number ON %I.certificate(certificate_number)', schema_name, schema_name);
+                  EXECUTE format('CREATE INDEX idx_%I_cert_status ON %I.certificate(status)', schema_name, schema_name);
+                  EXECUTE format('CREATE INDEX idx_%I_cert_issued_at ON %I.certificate(issued_at DESC)', schema_name, schema_name);
+                  EXECUTE format('CREATE INDEX idx_%I_audit_created_at ON %I.audit_log(created_at DESC)', schema_name, schema_name);
+                  EXECUTE format('CREATE INDEX idx_%I_audit_entity ON %I.audit_log(entity_type, entity_id)', schema_name, schema_name);
+                  
+              END;
+              $function$ LANGUAGE plpgsql;
+            splitStatements: false
+            stripComments: false
+      rollback:
+        sql: DROP FUNCTION IF EXISTS create_tenant_schema(VARCHAR);

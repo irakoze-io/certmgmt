@@ -1,0 +1,120 @@
+package tech.seccertificate.certmgmt.controller;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import tech.seccertificate.certmgmt.dto.customer.CreateCustomerRequest;
+import tech.seccertificate.certmgmt.dto.customer.CustomerDTO;
+import tech.seccertificate.certmgmt.entity.Customer;
+import tech.seccertificate.certmgmt.service.CustomerService;
+
+import java.net.URI;
+
+/**
+ * REST controller for customer management operations.
+ * Handles customer onboarding and customer information retrieval.
+ * 
+ * <p>Endpoints:
+ * <ul>
+ *   <li>POST /api/customers - Create a new customer (onboarding)</li>
+ *   <li>GET /api/customers/{id} - Get customer by ID</li>
+ *   <li>GET /api/customers - Get all customers</li>
+ * </ul>
+ */
+@Slf4j
+@RestController
+@RequiredArgsConstructor
+@RequestMapping("/api/customers")
+public class CustomerController {
+
+    private final CustomerService customerService;
+
+    /**
+     * Create a new customer (onboarding).
+     * This endpoint creates a customer and sets up their tenant schema.
+     * 
+     * @param request The customer creation request
+     * @return Created customer DTO with 201 status
+     */
+    @PostMapping
+    public ResponseEntity<CustomerDTO> createCustomer(@Valid @RequestBody CreateCustomerRequest request) {
+        log.info("Creating customer: {}", request.getName());
+
+        var customer = mapToEntity(request);
+        var createdCustomer = customerService.onboardCustomer(customer);
+
+        var response = mapToDTO(createdCustomer);
+
+        var location = URI.create("/api/customers/" + createdCustomer.getId());
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .location(location)
+                .body(response);
+    }
+
+    /**
+     * Get customer by ID.
+     * 
+     * @param id The customer ID
+     * @return Customer DTO with 200 status, or 404 if not found
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<CustomerDTO> getCustomer(@PathVariable Long id) {
+        log.debug("Getting customer with ID: {}", id);
+        
+        return customerService.findById(id)
+                .map(this::mapToDTO)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Get all customers.
+     * 
+     * @return List of customer DTOs with 200 status
+     */
+    @GetMapping
+    public ResponseEntity<java.util.List<CustomerDTO>> getAllCustomers() {
+        log.debug("Getting all customers");
+        
+        var customers = customerService.findAll();
+        var customerDTOs = customers.stream()
+                .map(this::mapToDTO)
+                .toList();
+        
+        return ResponseEntity.ok(customerDTOs);
+    }
+
+    /**
+     * Map CreateCustomerRequest to Customer entity.
+     */
+    private Customer mapToEntity(CreateCustomerRequest request) {
+        return Customer.builder()
+                .name(request.getName())
+                .domain(request.getDomain())
+                .tenantSchema(request.getTenantSchema()) // Optional, will be generated if null
+                .maxUsers(request.getMaxUsers())
+                .maxCertificatesPerMonth(request.getMaxCertificatesPerMonth())
+                .build();
+    }
+
+    /**
+     * Map Customer entity to CustomerDTO.
+     */
+    private CustomerDTO mapToDTO(Customer customer) {
+        return CustomerDTO.builder()
+                .id(customer.getId())
+                .tenantSchema(customer.getTenantSchema())
+                .name(customer.getName())
+                .domain(customer.getDomain())
+                .status(customer.getStatus())
+                .maxUsers(customer.getMaxUsers())
+                .maxCertificatesPerMonth(customer.getMaxCertificatesPerMonth())
+                .createdDate(customer.getCreatedDate())
+                .updatedDate(customer.getUpdatedDate())
+                .build();
+    }
+}

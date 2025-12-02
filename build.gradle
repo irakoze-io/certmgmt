@@ -1,0 +1,149 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.0'
+    id 'io.spring.dependency-management' version '1.1.6'
+    id 'org.asciidoctor.jvm.convert' version '4.0.3'
+}
+
+group = 'tech.seccertificate'
+version = '0.0.1'
+description = 'A project for designing and implementing a secure system to define, generate, and manage PDF certificates.'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Spring Boot Starters
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-amqp'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-integration'
+    implementation 'org.springframework.boot:spring-boot-starter-restclient'
+    implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-authorization-server'
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    
+    // Jackson for JSON processing
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.fasterxml.jackson.core:jackson-core'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations'
+
+    // Spring Integration
+    implementation 'org.springframework.integration:spring-integration-amqp'
+    implementation 'org.springframework.integration:spring-integration-http'
+    implementation 'org.springframework.integration:spring-integration-jdbc'
+    implementation 'org.springframework.integration:spring-integration-jpa'
+
+    // Database
+    implementation 'org.springframework.boot:spring-boot-starter-liquibase'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // Development Tools
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
+
+    // Testing
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-restdocs'
+    testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-amqp-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-data-jdbc-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-restclient-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-security-oauth2-authorization-server-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-thymeleaf-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.springframework.integration:spring-integration-test'
+    testImplementation 'org.springframework.restdocs:spring-restdocs-mockmvc'
+    testImplementation 'org.springframework.restdocs:spring-restdocs-asciidoctor'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    // Fail the build if tests fail
+    failFast = false
+    
+    // Show test output
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+        showStandardStreams = false
+    }
+    
+    // Run tests in parallel for faster execution
+    maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
+}
+
+// Task to run tests before bootRun (optional, can be skipped with -x test)
+tasks.named('bootRun') {
+    // Uncomment the line below to always run tests before bootRun
+    // dependsOn test
+    
+    // Or use: ./gradlew bootRun -x test to skip tests for faster development
+}
+
+// Custom task: bootRunWithTests - explicitly runs tests before bootRun
+tasks.register('bootRunWithTests') {
+    group = 'application'
+    description = 'Runs tests before starting the Spring Boot application'
+    dependsOn test, bootRun
+    bootRun.mustRunAfter test
+}
+
+// Task: verify - runs tests and checks (useful for CI/CD)
+tasks.named('check') {
+    dependsOn test
+}
+
+// Task: build - ensures tests pass before building
+tasks.named('build') {
+    dependsOn test
+    // Tests are already included in build lifecycle, but this makes it explicit
+}
+
+// Spring REST Docs configuration
+ext {
+    snippetsDir = file('build/generated-snippets')
+}
+
+tasks.named('asciidoctor') {
+    inputs.dir snippetsDir
+    dependsOn test
+    baseDirFollowsSourceFile()
+}
+
+// Javadoc configuration
+tasks.named('javadoc') {
+    options {
+        tags = [
+            'Project:a:Project:'
+        ]
+        addStringOption('Xdoclint:none', '-quiet')
+    }
+}
+
+// Boot JAR configuration
+tasks.named('bootJar') {
+    dependsOn asciidoctor
+    from("${asciidoctor.outputDir}") {
+        into 'static/docs'
+    }
+}

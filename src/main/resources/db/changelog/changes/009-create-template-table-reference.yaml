@@ -1,0 +1,75 @@
+databaseChangeLog:
+  - changeSet:
+      id: 009-create-template-table-reference
+      author: ivanirakoze
+      validCheckSums:
+        - 9:cc68f660a1cd4e7469adb5d81b10a40c
+      changes:
+        - comment: |
+            Reference migration for Template table structure.
+            Note: This table is created per-tenant in tenant schemas via create_tenant_schema() function.
+            This migration documents the structure that matches the Template entity.
+            The actual table creation happens dynamically when a tenant schema is created.
+        - createTable:
+            tableName: template
+            columns:
+              - column:
+                  name: id
+                  type: BIGSERIAL
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: customer_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: code
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: description
+                  type: TEXT
+              - column:
+                  name: current_version
+                  type: INTEGER
+                  defaultValueNumeric: 1
+              - column:
+                  name: metadata
+                  type: JSONB
+                  defaultValueComputed: "'{}'::jsonb"
+              - column:
+                  name: created_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+                  defaultValueComputed: NOW()
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP
+                  constraints:
+                    nullable: false
+                  defaultValueComputed: NOW()
+        - createIndex:
+            tableName: template
+            indexName: idx_template_customer_id
+            columns:
+              - column:
+                  name: customer_id
+        - createIndex:
+            tableName: template
+            indexName: idx_template_code
+            columns:
+              - column:
+                  name: code
+      rollback:
+        - dropTable:
+            tableName: template
