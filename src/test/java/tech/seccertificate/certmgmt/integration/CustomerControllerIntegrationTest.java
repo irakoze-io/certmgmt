@@ -107,8 +107,10 @@ class CustomerControllerIntegrationTest extends BaseIntegrationTest {
     @Test
     @DisplayName("GET /api/customers/{id} - Should return customer by ID")
     void getCustomer_ValidId_ReturnsCustomer() throws Exception {
-        // Arrange
-        Customer customer = createTestCustomer("Test Customer", "test.example.com", "test_customer");
+        // Arrange - use unique schema name to avoid conflicts
+        String uniqueSchema = "test_customer_" + System.currentTimeMillis();
+        String uniqueDomain = "test" + System.currentTimeMillis() + ".example.com";
+        Customer customer = createTestCustomer("Test Customer", uniqueDomain, uniqueSchema);
 
         // Act & Assert
         mockMvc.perform(get("/api/customers/{id}", customer.getId()))
@@ -117,7 +119,7 @@ class CustomerControllerIntegrationTest extends BaseIntegrationTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.id").value(customer.getId()))
                 .andExpect(jsonPath("$.name").value("Test Customer"))
-                .andExpect(jsonPath("$.domain").value("test.example.com"));
+                .andExpect(jsonPath("$.domain").value(uniqueDomain));
     }
 
     @Test
@@ -132,9 +134,14 @@ class CustomerControllerIntegrationTest extends BaseIntegrationTest {
     @Test
     @DisplayName("GET /api/customers - Should return all customers")
     void getAllCustomers_ReturnsAllCustomers() throws Exception {
-        // Arrange
-        Customer customer1 = createTestCustomer("Customer 1", "customer1.example.com", "customer1");
-        Customer customer2 = createTestCustomer("Customer 2", "customer2.example.com", "customer2");
+        // Arrange - use unique schema names to avoid conflicts
+        long timestamp = System.currentTimeMillis();
+        String schema1 = "customer1_" + timestamp;
+        String schema2 = "customer2_" + timestamp;
+        String domain1 = "customer1" + timestamp + ".example.com";
+        String domain2 = "customer2" + timestamp + ".example.com";
+        Customer customer1 = createTestCustomer("Customer 1", domain1, schema1);
+        Customer customer2 = createTestCustomer("Customer 2", domain2, schema2);
 
         // Act & Assert
         mockMvc.perform(get("/api/customers"))
