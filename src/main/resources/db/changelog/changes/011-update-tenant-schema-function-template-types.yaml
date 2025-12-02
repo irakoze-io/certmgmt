@@ -1,17 +1,15 @@
 databaseChangeLog:
   - changeSet:
-      id: 008-update-tenant-schema-function-user-table
+      id: 011-update-tenant-schema-function-template-types
       author: ivanirakoze
-      validCheckSums:
-        - 9:90f466fd039a0564ef0fb2a8050eba10
-        - 9:af3db02c5dada05b4a3f4bb5f550aa27
       changes:
         - sql:
             sql: |
-              -- Update tenant schema function to reflect entity changes:
-              -- 1. User table: id and customer_id changed from UUID to BIGSERIAL/BIGINT for consistency
-              -- 2. User table: email and keycloak_id changed from VARCHAR(255) to VARCHAR(75)
-              -- 3. All tenant tables (users, template, template_version, certificate, certificate_hash, audit_log) included
+              -- Update tenant schema function to fix type mismatches:
+              -- Template table: id changed from UUID to BIGSERIAL, customer_id from UUID to BIGINT
+              -- Template version table: template_id changed from UUID to BIGINT
+              -- Certificate table: customer_id changed from UUID to BIGINT
+              -- This matches the entity definitions (Template.id is Long, Customer.id is Long)
               CREATE OR REPLACE FUNCTION create_tenant_schema(schema_name VARCHAR) 
               RETURNS VOID AS $function$
               BEGIN
