@@ -47,9 +47,10 @@ class CustomerControllerIntegrationTest extends BaseIntegrationTest {
     void createCustomer_ValidRequest_ReturnsCreated() throws Exception {
         // Arrange - use unique schema name to avoid conflicts
         String uniqueSchema = "test_customer_" + System.currentTimeMillis();
+        String uniqueDomain = "test" + System.currentTimeMillis() + ".example.com";
         CreateCustomerRequest request = CreateCustomerRequest.builder()
                 .name("Test Customer")
-                .domain("test" + System.currentTimeMillis() + ".example.com")
+                .domain(uniqueDomain)
                 .tenantSchema(uniqueSchema)
                 .maxUsers(10)
                 .maxCertificatesPerMonth(1000)
@@ -64,20 +65,13 @@ class CustomerControllerIntegrationTest extends BaseIntegrationTest {
         // Capture response for debugging
         var mvcResult = resultActions.andReturn();
         String responseBody = mvcResult.getResponse().getContentAsString();
-        int status = mvcResult.getResponse().getStatus();
-        
-        // Print to stderr so it shows in test output
-        System.err.println("\n========== RESPONSE DEBUG ==========");
-        System.err.println("Status: " + status);
-        System.err.println("Body: " + responseBody);
-        System.err.println("=====================================\n");
         
         // Now assert
         resultActions.andExpect(status().isCreated())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.id").exists())
                 .andExpect(jsonPath("$.name").value("Test Customer"))
-                .andExpect(jsonPath("$.domain").value("test.example.com"))
+                .andExpect(jsonPath("$.domain").value(uniqueDomain))
                 .andExpect(jsonPath("$.tenantSchema").value(uniqueSchema))
                 .andExpect(jsonPath("$.status").value("ACTIVE"))
                 .andExpect(header().exists("Location"));
