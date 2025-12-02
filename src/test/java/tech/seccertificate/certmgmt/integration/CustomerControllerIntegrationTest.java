@@ -1,16 +1,13 @@
 package tech.seccertificate.certmgmt.integration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.ResultActions;
 import tech.seccertificate.certmgmt.dto.customer.CreateCustomerRequest;
 import tech.seccertificate.certmgmt.dto.customer.CustomerDTO;
-import tech.seccertificate.certmgmt.entity.Customer;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -140,8 +137,9 @@ class CustomerControllerIntegrationTest extends BaseIntegrationTest {
         var schema2 = "customer2_" + timestamp;
         var domain1 = "customer1" + timestamp + ".example.com";
         var domain2 = "customer2" + timestamp + ".example.com";
-        var customer1 = createTestCustomer("Customer 1", domain1, schema1);
-        var customer2 = createTestCustomer("Customer 2", domain2, schema2);
+
+        createTestCustomer("Customer 1", domain1, schema1);
+        createTestCustomer("Customer 2", domain2, schema2);
 
         // Act & Assert
         mockMvc.perform(get("/api/customers"))

@@ -1,13 +1,11 @@
 package tech.seccertificate.certmgmt.integration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.ResultActions;
 import tech.seccertificate.certmgmt.dto.template.TemplateDTO;
 import tech.seccertificate.certmgmt.entity.Customer;
 import tech.seccertificate.certmgmt.entity.Template;
@@ -27,8 +25,6 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
     private TemplateService templateService;
 
     private Customer testCustomer;
-    private String uniqueSchema;
-    private String uniqueDomain;
 
     @BeforeEach
     void setUp() {
@@ -36,8 +32,8 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
         initMockMvc();
         // Use unique schema and domain to avoid conflicts
         var timestamp = System.currentTimeMillis();
-        uniqueSchema = "test_customer_" + timestamp;
-        uniqueDomain = "test" + timestamp + ".example.com";
+        var uniqueSchema = "TST_CUS" + timestamp;
+        var uniqueDomain = "test" + timestamp + ".example.com";
         testCustomer = createTestCustomer("Test Customer", uniqueDomain, uniqueSchema);
         setTenantContext(testCustomer.getId());
     }
