@@ -44,3 +44,13 @@ build/
 postgres-data/
 
 *.sh
+.cursor/
+/CLAUDE.md
+/Certificate_Management_API.postman_collection.json
+/GRADLE_FILES_TO_COMMIT.md
+/GRADLE_MIGRATION.md
+/POSTMAN_COLLECTION_README.md
+/Tenant_Schema_Switching_Guide.md
+/docs/
+/qodana.yaml
+/src/main/java/tech/seccertificate/certmgmt/config/README_TENANT_SCHEMA_SWITCHING.md
