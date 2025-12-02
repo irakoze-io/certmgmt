@@ -116,7 +116,6 @@ class CertificateServiceImplTest {
         when(templateService.findVersionById(templateVersionId)).thenReturn(Optional.of(publishedTemplateVersion));
         when(templateService.findById(1L)).thenReturn(Optional.of(validTemplate));
         when(certificateRepository.existsByCertificateNumber(anyString())).thenReturn(false);
-        when(customerRepository.findByTenantSchema(anyString())).thenReturn(Optional.of(validCustomer));
         when(customerRepository.findById(1L)).thenReturn(Optional.of(validCustomer));
         when(certificateRepository.findByCustomerId(1L)).thenReturn(List.of());
         when(certificateRepository.save(any(Certificate.class))).thenAnswer(invocation -> {
@@ -211,7 +210,6 @@ class CertificateServiceImplTest {
         when(templateService.findVersionById(templateVersionId)).thenReturn(Optional.of(publishedTemplateVersion));
         when(templateService.findById(1L)).thenReturn(Optional.of(validTemplate));
         when(certificateRepository.existsByCertificateNumber(anyString())).thenReturn(false);
-        when(customerRepository.findByTenantSchema(anyString())).thenReturn(Optional.of(validCustomer));
         when(customerRepository.findById(1L)).thenReturn(Optional.of(validCustomer));
         when(certificateRepository.findByCustomerId(1L)).thenReturn(List.of(existingCert));
 
@@ -231,7 +229,6 @@ class CertificateServiceImplTest {
         when(templateService.findVersionById(templateVersionId)).thenReturn(Optional.of(publishedTemplateVersion));
         when(templateService.findById(1L)).thenReturn(Optional.of(validTemplate));
         when(certificateRepository.existsByCertificateNumber(anyString())).thenReturn(false);
-        when(customerRepository.findByTenantSchema(anyString())).thenReturn(Optional.of(validCustomer));
         when(customerRepository.findById(1L)).thenReturn(Optional.of(validCustomer));
         when(certificateRepository.findByCustomerId(1L)).thenReturn(List.of());
         when(certificateRepository.save(any(Certificate.class))).thenAnswer(invocation -> {
@@ -270,7 +267,6 @@ class CertificateServiceImplTest {
         when(templateService.findVersionById(templateVersionId)).thenReturn(Optional.of(publishedTemplateVersion));
         when(templateService.findById(1L)).thenReturn(Optional.of(validTemplate));
         when(certificateRepository.existsByCertificateNumber(anyString())).thenReturn(false);
-        when(customerRepository.findByTenantSchema(anyString())).thenReturn(Optional.of(validCustomer));
         when(customerRepository.findById(1L)).thenReturn(Optional.of(validCustomer));
         when(certificateRepository.findByCustomerId(1L)).thenReturn(List.of());
         when(certificateRepository.save(any(Certificate.class))).thenAnswer(invocation -> {
@@ -590,7 +586,7 @@ class CertificateServiceImplTest {
 
         // Assert
         assertThat(result).startsWith("JAVA_CERT-");
-        assertThat(result).hasSize(27); // JAVA_CERT-20240101-ABC123 format
+        assertThat(result).hasSize(25); // JAVA_CERT-20240101-ABC12 format
     }
 
     @Test

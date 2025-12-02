@@ -289,7 +289,6 @@ class TemplateServiceImplTest {
 
         doNothing().when(tenantSchemaValidator).validateTenantSchema(anyString());
         when(templateRepository.findById(1L)).thenReturn(Optional.of(validTemplate));
-        when(templateRepository.existsByCode(anyString())).thenReturn(false);
         when(templateRepository.save(any(Template.class))).thenReturn(validTemplate);
 
         // Act
@@ -589,9 +588,7 @@ class TemplateServiceImplTest {
         // Arrange
         doNothing().when(tenantSchemaValidator).validateTenantSchema(anyString());
         when(templateRepository.findById(1L)).thenReturn(Optional.of(validTemplate));
-        when(templateVersionRepository.countByTemplate_Id(1L)).thenReturn(0L);
         when(templateVersionRepository.save(any(TemplateVersion.class))).thenReturn(validTemplateVersion);
-        when(templateRepository.save(any(Template.class))).thenReturn(validTemplate);
 
         // Act
         TemplateVersion result = templateService.createTemplateVersion(1L, validTemplateVersion);
@@ -677,13 +674,11 @@ class TemplateServiceImplTest {
         validTemplateVersion.setStatus(null);
         doNothing().when(tenantSchemaValidator).validateTenantSchema(anyString());
         when(templateRepository.findById(1L)).thenReturn(Optional.of(validTemplate));
-        when(templateVersionRepository.countByTemplate_Id(1L)).thenReturn(0L);
         when(templateVersionRepository.save(any(TemplateVersion.class))).thenAnswer(invocation -> {
             TemplateVersion saved = invocation.getArgument(0);
             assertThat(saved.getStatus()).isEqualTo(TemplateVersion.TemplateVersionStatus.DRAFT);
             return saved;
         });
-        when(templateRepository.save(any(Template.class))).thenReturn(validTemplate);
 
         // Act
         templateService.createTemplateVersion(1L, validTemplateVersion);

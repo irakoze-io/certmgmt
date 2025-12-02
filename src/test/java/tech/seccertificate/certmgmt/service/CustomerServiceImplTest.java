@@ -125,6 +125,7 @@ class CustomerServiceImplTest {
         Customer customerWithoutDefaults = Customer.builder()
                 .name("Test Customer")
                 .domain("example.com")
+                .status(null) // Explicitly set to null to test default setting
                 .build();
 
         when(customerRepository.existsByTenantSchema(anyString())).thenReturn(false);
@@ -340,7 +341,6 @@ class CustomerServiceImplTest {
                 .build();
 
         when(customerRepository.findById(1L)).thenReturn(Optional.of(validCustomer));
-        when(customerRepository.existsByDomain(anyString())).thenReturn(false);
         when(customerRepository.save(any(Customer.class))).thenReturn(validCustomer);
 
         // Act
