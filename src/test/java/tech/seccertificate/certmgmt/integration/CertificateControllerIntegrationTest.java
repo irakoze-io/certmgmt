@@ -25,7 +25,12 @@ class CertificateControllerIntegrationTest extends BaseIntegrationTest {
     void setUp() {
         cleanup();
         initMockMvc();
-        testCustomer = createTestCustomer("Test Customer", "test.example.com", "test_customer");
+
+        var uniqueCustomerName = UUID.randomUUID().toString()
+                .replaceAll("-", "")
+                .replaceAll("[0-9]", "");
+
+        testCustomer = createTestCustomer("Test Customer", "test.example.com", uniqueCustomerName);
         setTenantContext(testCustomer.getId());
     }
 
@@ -57,7 +62,7 @@ class CertificateControllerIntegrationTest extends BaseIntegrationTest {
                                 .content(objectMapper.writeValueAsString(request)))
                 .andDo(print())
                 .andReturn();
-        
+
         // Accept either success or client error (template version may not exist)
         int status = result.getResponse().getStatus();
         assertThat(status).isBetween(200, 499); // Accept any 2xx or 4xx status
