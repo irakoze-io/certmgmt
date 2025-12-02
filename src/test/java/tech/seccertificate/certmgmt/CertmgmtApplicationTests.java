@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.test.context.ActiveProfiles;
 import tech.seccertificate.certmgmt.config.JacksonConfig;
 import tech.seccertificate.certmgmt.config.JpaConfig;
 import tech.seccertificate.certmgmt.config.TenantContext;
@@ -21,7 +20,6 @@ import tech.seccertificate.certmgmt.service.TemplateService;
 import tech.seccertificate.certmgmt.service.TenantService;
 
 import javax.sql.DataSource;
-import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

@@ -8,7 +8,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
 import tech.seccertificate.certmgmt.config.TenantContext;
 import tech.seccertificate.certmgmt.config.TenantSchemaValidator;
 import tech.seccertificate.certmgmt.entity.Certificate;
