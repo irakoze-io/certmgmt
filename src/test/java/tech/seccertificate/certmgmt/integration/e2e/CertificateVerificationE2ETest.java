@@ -81,6 +81,7 @@ class CertificateVerificationE2ETest extends BaseIntegrationTest {
                 .fieldSchema(Map.of("name", "string"))
                 .cssStyles("body { }")
                 .status(TemplateVersion.TemplateVersionStatus.PUBLISHED)
+                .createdBy(UUID.randomUUID()) // Required field for template version creation
                 .build();
 
         var versionResult = mockMvc.perform(
