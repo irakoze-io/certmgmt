@@ -19,3 +19,5 @@ databaseChangeLog:
       file: db/changelog/changes/009-create-template-table-reference.yaml
   - include:
       file: db/changelog/changes/010-create-audit-log-table-reference.yaml
+  - include:
+      file: db/changelog/changes/011-update-tenant-schema-function-template-types.yaml
