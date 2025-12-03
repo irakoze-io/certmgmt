@@ -9,7 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import tech.seccertificate.certmgmt.dto.template.TemplateVersionDTO;
+import tech.seccertificate.certmgmt.dto.template.TemplateVersionResponse;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
 import tech.seccertificate.certmgmt.service.TemplateService;
 
@@ -50,16 +50,16 @@ public class TemplateVersionController {
      * Create a new template version.
      * 
      * @param templateId The template ID
-     * @param versionDTO The template version data
-     * @return Created template version DTO with 201 status
+     * @param versionResponse The template version data
+     * @return Created template version response with 201 status
      */
     @PostMapping
-    public ResponseEntity<TemplateVersionDTO> createTemplateVersion(
+    public ResponseEntity<TemplateVersionResponse> createTemplateVersion(
             @PathVariable @NotNull Long templateId,
-            @Valid @RequestBody TemplateVersionDTO versionDTO) {
+            @Valid @RequestBody TemplateVersionResponse versionResponse) {
         log.info("Creating template version for template ID: {}", templateId);
         
-        var templateVersion = mapToEntity(versionDTO);
+        var templateVersion = mapToEntity(versionResponse);
         var createdVersion = templateService.createTemplateVersion(templateId, templateVersion);
         var response = mapToDTO(createdVersion);
         
@@ -74,10 +74,10 @@ public class TemplateVersionController {
      * Get all versions for a template.
      * 
      * @param templateId The template ID
-     * @return List of template version DTOs with 200 status
+     * @return List of template version responses with 200 status
      */
     @GetMapping
-    public ResponseEntity<List<TemplateVersionDTO>> getTemplateVersions(
+    public ResponseEntity<List<TemplateVersionResponse>> getTemplateVersions(
             @PathVariable @NotNull Long templateId) {
         log.debug("Getting all versions for template ID: {}", templateId);
         
@@ -94,10 +94,10 @@ public class TemplateVersionController {
      * 
      * @param templateId The template ID
      * @param versionId The version ID
-     * @return Template version DTO with 200 status, or 404 if not found
+     * @return Template version response with 200 status, or 404 if not found
      */
     @GetMapping("/{versionId}")
-    public ResponseEntity<TemplateVersionDTO> getTemplateVersion(
+    public ResponseEntity<TemplateVersionResponse> getTemplateVersion(
             @PathVariable @NotNull Long templateId,
             @PathVariable @NotNull UUID versionId) {
         log.debug("Getting template version with ID: {} for template: {}", versionId, templateId);
@@ -113,10 +113,10 @@ public class TemplateVersionController {
      * Get current version of a template.
      * 
      * @param templateId The template ID
-     * @return Template version DTO with 200 status, or 404 if not found
+     * @return Template version response with 200 status, or 404 if not found
      */
     @GetMapping("/current")
-    public ResponseEntity<TemplateVersionDTO> getCurrentVersion(
+    public ResponseEntity<TemplateVersionResponse> getCurrentVersion(
             @PathVariable @NotNull Long templateId) {
         log.debug("Getting current version for template ID: {}", templateId);
         
@@ -130,10 +130,10 @@ public class TemplateVersionController {
      * Get latest published version of a template.
      * 
      * @param templateId The template ID
-     * @return Template version DTO with 200 status, or 404 if not found
+     * @return Template version response with 200 status, or 404 if not found
      */
     @GetMapping("/latest-published")
-    public ResponseEntity<TemplateVersionDTO> getLatestPublishedVersion(
+    public ResponseEntity<TemplateVersionResponse> getLatestPublishedVersion(
             @PathVariable @NotNull Long templateId) {
         log.debug("Getting latest published version for template ID: {}", templateId);
         
@@ -148,19 +148,19 @@ public class TemplateVersionController {
      * 
      * @param templateId The template ID
      * @param versionId The version ID
-     * @param versionDTO The updated template version data
-     * @return Updated template version DTO with 200 status, or 404 if not found
+     * @param versionResponse The updated template version data
+     * @return Updated template version response with 200 status, or 404 if not found
      */
     @PutMapping("/{versionId}")
-    public ResponseEntity<TemplateVersionDTO> updateTemplateVersion(
+    public ResponseEntity<TemplateVersionResponse> updateTemplateVersion(
             @PathVariable @NotNull Long templateId,
             @PathVariable @NotNull UUID versionId,
-            @Valid @RequestBody TemplateVersionDTO versionDTO) {
+            @Valid @RequestBody TemplateVersionResponse versionResponse) {
         log.info("Updating template version with ID: {} for template: {}", versionId, templateId);
 
-        versionDTO.setId(versionId);
+        versionResponse.setId(versionId);
         
-        var templateVersion = mapToEntity(versionDTO);
+        var templateVersion = mapToEntity(versionResponse);
         var updatedVersion = templateService.updateTemplateVersion(templateVersion);
         var response = mapToDTO(updatedVersion);
         
@@ -173,10 +173,10 @@ public class TemplateVersionController {
      * 
      * @param templateId The template ID
      * @param versionId The version ID
-     * @return Published template version DTO with 200 status, or 404 if not found
+     * @return Published template version response with 200 status, or 404 if not found
      */
     @PostMapping("/{versionId}/publish")
-    public ResponseEntity<TemplateVersionDTO> publishVersion(
+    public ResponseEntity<TemplateVersionResponse> publishVersion(
             @PathVariable @NotNull Long templateId,
             @PathVariable @NotNull UUID versionId) {
         log.info("Publishing template version with ID: {} for template: {}", versionId, templateId);
@@ -197,10 +197,10 @@ public class TemplateVersionController {
      * 
      * @param templateId The template ID
      * @param versionId The version ID
-     * @return Archived template version DTO with 200 status, or 404 if not found
+     * @return Archived template version response with 200 status, or 404 if not found
      */
     @PostMapping("/{versionId}/archive")
-    public ResponseEntity<TemplateVersionDTO> archiveVersion(
+    public ResponseEntity<TemplateVersionResponse> archiveVersion(
             @PathVariable @NotNull Long templateId,
             @PathVariable @NotNull UUID versionId) {
         log.info("Archiving template version with ID: {} for template: {}", versionId, templateId);
@@ -222,10 +222,10 @@ public class TemplateVersionController {
      * 
      * @param templateId The template ID
      * @param versionId The version ID
-     * @return Draft template version DTO with 200 status, or 404 if not found
+     * @return Draft template version response with 200 status, or 404 if not found
      */
     @PostMapping("/{versionId}/draft")
-    public ResponseEntity<TemplateVersionDTO> setVersionAsDraft(
+    public ResponseEntity<TemplateVersionResponse> setVersionAsDraft(
             @PathVariable @NotNull Long templateId,
             @PathVariable @NotNull UUID versionId) {
         log.info("Setting template version as draft with ID: {} for template: {}", versionId, templateId);
@@ -242,9 +242,9 @@ public class TemplateVersionController {
     }
 
     /**
-     * Map TemplateVersionDTO to TemplateVersion entity.
+     * Map TemplateVersionResponse to TemplateVersion entity.
      */
-    private TemplateVersion mapToEntity(TemplateVersionDTO dto) {
+    private TemplateVersion mapToEntity(TemplateVersionResponse dto) {
         String fieldSchemaJson = null;
         if (dto.getFieldSchema() != null) {
             try {
@@ -278,9 +278,9 @@ public class TemplateVersionController {
     }
 
     /**
-     * Map TemplateVersion entity to TemplateVersionDTO.
+     * Map TemplateVersion entity to TemplateVersionResponse.
      */
-    private TemplateVersionDTO mapToDTO(TemplateVersion version) {
+    private TemplateVersionResponse mapToDTO(TemplateVersion version) {
         Map<String, Object> fieldSchema = null;
         if (version.getFieldSchema() != null && !version.getFieldSchema().isEmpty()) {
             try {
@@ -303,7 +303,7 @@ public class TemplateVersionController {
             }
         }
         
-        return TemplateVersionDTO.builder()
+        return TemplateVersionResponse.builder()
                 .id(version.getId())
                 .templateId(version.getTemplate().getId())
                 .version(version.getVersion())

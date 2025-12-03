@@ -9,7 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import tech.seccertificate.certmgmt.dto.certificate.CertificateDTO;
+import tech.seccertificate.certmgmt.dto.certificate.CertificateResponse;
 import tech.seccertificate.certmgmt.dto.certificate.GenerateCertificateRequest;
 import tech.seccertificate.certmgmt.entity.Certificate;
 import tech.seccertificate.certmgmt.service.CertificateService;
@@ -52,10 +52,10 @@ public class CertificateController {
      * Generate a certificate (synchronously or asynchronously).
      * 
      * @param request The certificate generation request
-     * @return Created certificate DTO with 201 status
+     * @return Created certificate response with 201 status
      */
     @PostMapping
-    public ResponseEntity<CertificateDTO> generateCertificate(
+    public ResponseEntity<CertificateResponse> generateCertificate(
             @Valid @RequestBody GenerateCertificateRequest request) {
         log.info("Generating certificate for template version: {}", request.getTemplateVersionId());
         
@@ -83,10 +83,10 @@ public class CertificateController {
      * Get certificate by ID.
      * 
      * @param id The certificate ID
-     * @return Certificate DTO with 200 status, or 404 if not found
+     * @return Certificate response with 200 status, or 404 if not found
      */
     @GetMapping("/{id}")
-    public ResponseEntity<CertificateDTO> getCertificate(@PathVariable @NotNull UUID id) {
+    public ResponseEntity<CertificateResponse> getCertificate(@PathVariable @NotNull UUID id) {
         log.debug("Getting certificate with ID: {}", id);
         
         return certificateService.findById(id)
@@ -99,10 +99,10 @@ public class CertificateController {
      * Get certificate by certificate number.
      * 
      * @param certificateNumber The certificate number
-     * @return Certificate DTO with 200 status, or 404 if not found
+     * @return Certificate response with 200 status, or 404 if not found
      */
     @GetMapping("/number/{certificateNumber}")
-    public ResponseEntity<CertificateDTO> getCertificateByNumber(
+    public ResponseEntity<CertificateResponse> getCertificateByNumber(
             @PathVariable @NotNull String certificateNumber) {
         log.debug("Getting certificate with number: {}", certificateNumber);
         
@@ -118,10 +118,10 @@ public class CertificateController {
      * @param customerId Optional customer ID filter
      * @param status Optional status filter
      * @param templateVersionId Optional template version ID filter
-     * @return List of certificate DTOs with 200 status
+     * @return List of certificate responses with 200 status
      */
     @GetMapping
-    public ResponseEntity<List<CertificateDTO>> getAllCertificates(
+    public ResponseEntity<List<CertificateResponse>> getAllCertificates(
             @RequestParam(required = false) Long customerId,
             @RequestParam(required = false) Certificate.CertificateStatus status,
             @RequestParam(required = false) UUID templateVersionId) {
@@ -154,17 +154,17 @@ public class CertificateController {
      * Update certificate.
      * 
      * @param id The certificate ID
-     * @param certificateDTO The updated certificate data
-     * @return Updated certificate DTO with 200 status, or 404 if not found
+     * @param certificateResponse The updated certificate data
+     * @return Updated certificate response with 200 status, or 404 if not found
      */
     @PutMapping("/{id}")
-    public ResponseEntity<CertificateDTO> updateCertificate(
+    public ResponseEntity<CertificateResponse> updateCertificate(
             @PathVariable @NotNull UUID id,
-            @Valid @RequestBody CertificateDTO certificateDTO) {
+            @Valid @RequestBody CertificateResponse certificateResponse) {
         log.info("Updating certificate with ID: {}", id);
         
-        certificateDTO.setId(id);
-        var certificate = mapToEntity(certificateDTO);
+        certificateResponse.setId(id);
+        var certificate = mapToEntity(certificateResponse);
         var updatedCertificate = certificateService.updateCertificate(certificate);
         var response = mapToDTO(updatedCertificate);
         
@@ -194,10 +194,10 @@ public class CertificateController {
      * Sets status to REVOKED.
      * 
      * @param id The certificate ID
-     * @return Revoked certificate DTO with 200 status, or 404 if not found
+     * @return Revoked certificate response with 200 status, or 404 if not found
      */
     @PostMapping("/{id}/revoke")
-    public ResponseEntity<CertificateDTO> revokeCertificate(@PathVariable @NotNull UUID id) {
+    public ResponseEntity<CertificateResponse> revokeCertificate(@PathVariable @NotNull UUID id) {
         log.info("Revoking certificate with ID: {}", id);
         
         var revokedCertificate = certificateService.revokeCertificate(id);
@@ -234,10 +234,10 @@ public class CertificateController {
      * This endpoint doesn't require authentication and can be used for public verification.
      * 
      * @param hash The certificate hash to verify
-     * @return Certificate DTO with 200 status if valid, or 404 if not found/invalid
+     * @return Certificate response with 200 status if valid, or 404 if not found/invalid
      */
     @GetMapping("/verify/{hash}")
-    public ResponseEntity<CertificateDTO> verifyCertificate(@PathVariable @NotNull String hash) {
+    public ResponseEntity<CertificateResponse> verifyCertificate(@PathVariable @NotNull String hash) {
         log.debug("Verifying certificate with hash: {}", hash);
         
         return certificateService.verifyCertificateByHash(hash)
@@ -282,9 +282,9 @@ public class CertificateController {
     }
 
     /**
-     * Map CertificateDTO to Certificate entity.
+     * Map CertificateResponse to Certificate entity.
      */
-    private Certificate mapToEntity(CertificateDTO dto) {
+    private Certificate mapToEntity(CertificateResponse dto) {
         String recipientDataJson = null;
         if (dto.getRecipientData() != null) {
             try {
@@ -322,9 +322,9 @@ public class CertificateController {
     }
 
     /**
-     * Map Certificate entity to CertificateDTO.
+     * Map Certificate entity to CertificateResponse.
      */
-    private CertificateDTO mapToDTO(Certificate certificate) {
+    private CertificateResponse mapToDTO(Certificate certificate) {
         Map<String, Object> recipientData = null;
         if (certificate.getRecipientData() != null && !certificate.getRecipientData().isEmpty()) {
             try {
@@ -347,7 +347,7 @@ public class CertificateController {
             }
         }
         
-        return CertificateDTO.builder()
+        return CertificateResponse.builder()
                 .id(certificate.getId())
                 .customerId(certificate.getCustomerId())
                 .templateVersionId(certificate.getTemplateVersionId())
