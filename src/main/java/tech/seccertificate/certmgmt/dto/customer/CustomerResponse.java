@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
- * Data Transfer Object for Customer entity.
+ * Response DTO for Customer entity.
  * Used for API responses to expose customer information.
  */
 @Data
@@ -19,7 +19,7 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class CustomerDTO {
+public class CustomerResponse {
 
     /**
      * Customer unique identifier.

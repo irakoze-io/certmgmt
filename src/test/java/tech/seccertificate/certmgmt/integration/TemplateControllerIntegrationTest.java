@@ -6,7 +6,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import tech.seccertificate.certmgmt.dto.template.TemplateDTO;
+import tech.seccertificate.certmgmt.dto.template.TemplateResponse;
 import tech.seccertificate.certmgmt.entity.Customer;
 import tech.seccertificate.certmgmt.entity.Template;
 import tech.seccertificate.certmgmt.service.TemplateService;
@@ -52,7 +52,7 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
     void createTemplate_ValidRequest_ReturnsCreated() throws Exception {
         // Arrange
         var uniqueCode = "TEST_TEMPLATE_" + System.currentTimeMillis();
-        var templateDTO = TemplateDTO.builder()
+        var templateResponse = TemplateResponse.builder()
                 .customerId(testCustomer.getId())
                 .name("Test Template")
                 .code(uniqueCode)
@@ -64,7 +64,7 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
         var result = mockMvc.perform(
                         withTenantHeader(post("/api/templates"), testCustomer.getId())
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(templateDTO)))
+                                .content(objectMapper.writeValueAsString(templateResponse)))
                 .andDo(print())
                 .andExpect(status().isCreated())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -76,7 +76,7 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
 
         // Verify template was created
         var responseBody = result.andReturn().getResponse().getContentAsString();
-        var createdTemplate = objectMapper.readValue(responseBody, TemplateDTO.class);
+        var createdTemplate = objectMapper.readValue(responseBody, TemplateResponse.class);
         
         assertThat(createdTemplate.getId()).isNotNull();
     }
@@ -198,8 +198,8 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
                 .build();
         var createdTemplate = templateService.createTemplate(template);
 
-        // Prepare update DTO
-        var updateDTO = TemplateDTO.builder()
+        // Prepare update response
+        var updateResponse = TemplateResponse.builder()
                 .id(createdTemplate.getId())
                 .customerId(testCustomer.getId())
                 .name("Updated Name")
@@ -212,7 +212,7 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
         mockMvc.perform(
                         withTenantHeader(put("/api/templates/{id}", createdTemplate.getId()), testCustomer.getId())
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(updateDTO)))
+                                .content(objectMapper.writeValueAsString(updateResponse)))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -225,7 +225,7 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
     @DisplayName("PUT /api/templates/{id} - Should return 404 for non-existent template")
     void updateTemplate_NonExistentId_ReturnsNotFound() throws Exception {
         // Arrange
-        var updateDTO = TemplateDTO.builder()
+        var updateResponse = TemplateResponse.builder()
                 .id(99999L)
                 .customerId(testCustomer.getId())
                 .name("Updated Name")
@@ -236,7 +236,7 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
         mockMvc.perform(
                         withTenantHeader(put("/api/templates/{id}", 99999L), testCustomer.getId())
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(updateDTO)))
+                                .content(objectMapper.writeValueAsString(updateResponse)))
                 .andDo(print())
                 .andExpect(status().isNotFound());
     }
@@ -280,7 +280,7 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
     @DisplayName("POST /api/templates - Should fail with invalid request")
     void createTemplate_InvalidRequest_ReturnsBadRequest() throws Exception {
         // Arrange - missing required fields
-        var templateDTO = TemplateDTO.builder()
+        var templateResponse = TemplateResponse.builder()
                 .name("") // Invalid: empty name
                 .code("") // Invalid: empty code
                 .build();
@@ -289,7 +289,7 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
         mockMvc.perform(
                         withTenantHeader(post("/api/templates"), testCustomer.getId())
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(templateDTO)))
+                                .content(objectMapper.writeValueAsString(templateResponse)))
                 .andDo(print())
                 .andExpect(status().isBadRequest());
     }

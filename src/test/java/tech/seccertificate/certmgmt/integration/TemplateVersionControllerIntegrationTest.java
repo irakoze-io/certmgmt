@@ -5,7 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
-import tech.seccertificate.certmgmt.dto.template.TemplateVersionDTO;
+import tech.seccertificate.certmgmt.dto.template.TemplateVersionResponse;
 import tech.seccertificate.certmgmt.entity.Customer;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
 
@@ -42,7 +42,7 @@ class TemplateVersionControllerIntegrationTest extends BaseIntegrationTest {
     @DisplayName("POST /api/templates/{templateId}/versions - Should create template version")
     void createTemplateVersion_ValidRequest_ReturnsCreated() throws Exception {
         // Arrange
-        var versionDTO = TemplateVersionDTO.builder()
+        var versionResponse = TemplateVersionResponse.builder()
                 .version(1)
                 .htmlContent("<html><body>Test</body></html>")
                 .fieldSchema(Map.of("name", "string", "email", "string"))
@@ -56,7 +56,7 @@ class TemplateVersionControllerIntegrationTest extends BaseIntegrationTest {
         var result = mockMvc.perform(
                         withTenantHeader(post("/api/templates/{templateId}/versions", 1L), testCustomer.getId())
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(versionDTO)))
+                                .content(objectMapper.writeValueAsString(versionResponse)))
                 .andDo(print())
                 .andReturn();
 

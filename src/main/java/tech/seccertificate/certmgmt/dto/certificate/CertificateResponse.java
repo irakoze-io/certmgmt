@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Data Transfer Object for Certificate entity.
+ * Response DTO for Certificate entity.
  * Used for API responses to expose certificate information.
  */
 @Data
@@ -20,7 +20,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class CertificateDTO {
+public class CertificateResponse {
 
     /**
      * Certificate unique identifier.

@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Data Transfer Object for Template entity.
+ * Response DTO for Template entity.
  * Used for API responses to expose template information.
  */
 @Data
@@ -19,7 +19,7 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class TemplateDTO {
+public class TemplateResponse {
 
     /**
      * Template unique identifier.
@@ -69,5 +69,5 @@ public class TemplateDTO {
     /**
      * List of template versions (optional, populated when requested).
      */
-    private List<TemplateVersionDTO> versions;
+    private List<TemplateVersionResponse> versions;
 }

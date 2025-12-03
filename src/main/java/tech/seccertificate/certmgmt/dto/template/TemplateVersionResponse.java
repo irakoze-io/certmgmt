@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Data Transfer Object for TemplateVersion entity.
+ * Response DTO for TemplateVersion entity.
  * Used for API responses to expose template version information.
  */
 @Data
@@ -20,7 +20,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class TemplateVersionDTO {
+public class TemplateVersionResponse {
 
     /**
      * Template version unique identifier.
