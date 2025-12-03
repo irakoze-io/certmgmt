@@ -87,6 +87,7 @@ class TemplateVersioningE2ETest extends BaseIntegrationTest {
                 .fieldSchema(Map.of("name", "string"))
                 .cssStyles("body { color: black; }")
                 .status(TemplateVersion.TemplateVersionStatus.DRAFT)
+                .createdBy(UUID.randomUUID()) // Required field for template version creation
                 .build();
 
         var version1Result = mockMvc.perform(
@@ -111,6 +112,7 @@ class TemplateVersioningE2ETest extends BaseIntegrationTest {
                 .fieldSchema(Map.of("name", "string", "email", "string"))
                 .cssStyles("body { color: blue; }")
                 .status(TemplateVersion.TemplateVersionStatus.PUBLISHED)
+                .createdBy(UUID.randomUUID()) // Required field for template version creation
                 .build();
 
         var version2Result = mockMvc.perform(
@@ -160,6 +162,7 @@ class TemplateVersioningE2ETest extends BaseIntegrationTest {
                 .fieldSchema(Map.of("name", "string"))
                 .cssStyles("body { }")
                 .status(TemplateVersion.TemplateVersionStatus.DRAFT)
+                .createdBy(UUID.randomUUID()) // Required field for template version creation
                 .build();
 
         var version1Result = mockMvc.perform(
@@ -181,6 +184,7 @@ class TemplateVersioningE2ETest extends BaseIntegrationTest {
                 .fieldSchema(version1.getFieldSchema())
                 .cssStyles(version1.getCssStyles())
                 .status(TemplateVersion.TemplateVersionStatus.PUBLISHED)
+                .createdBy(version1.getCreatedBy()) // Preserve the original createdBy value
                 .build();
 
         mockMvc.perform(

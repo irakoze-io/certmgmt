@@ -105,6 +105,7 @@ class CertificateGenerationE2ETest extends BaseIntegrationTest {
                 ))
                 .cssStyles("body { font-family: Arial; }")
                 .status(TemplateVersion.TemplateVersionStatus.PUBLISHED)
+                .createdBy(UUID.randomUUID()) // Required field for template version creation
                 .build();
 
         var versionResult = mockMvc.perform(

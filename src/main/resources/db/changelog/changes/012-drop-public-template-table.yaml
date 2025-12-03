@@ -1,0 +1,21 @@
+databaseChangeLog:
+  - changeSet:
+      id: 012-drop-public-template-table
+      author: ivanirakoze
+      comment: |
+        Drop template and template_version tables from public schema if they exist.
+        These tables should only exist in tenant schemas to ensure proper multi-tenant isolation.
+        Migration 009 was a "reference" migration that accidentally created real tables in public schema.
+      changes:
+        - sql:
+            sql: |
+              -- Drop template_version table from public schema if it exists
+              DROP TABLE IF EXISTS public.template_version CASCADE;
+
+              -- Drop template table from public schema if it exists
+              DROP TABLE IF EXISTS public.template CASCADE;
+            splitStatements: false
+      rollback:
+        sql: |
+          -- No rollback needed - these tables should not exist in public schema
+          -- Templates belong in tenant schemas only
