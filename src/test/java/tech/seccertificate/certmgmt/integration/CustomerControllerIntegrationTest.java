@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import tech.seccertificate.certmgmt.dto.customer.CreateCustomerRequest;
-import tech.seccertificate.certmgmt.dto.customer.CustomerDTO;
+import tech.seccertificate.certmgmt.dto.customer.CustomerResponse;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
 
 import java.util.UUID;
@@ -79,7 +79,7 @@ class CustomerControllerIntegrationTest extends BaseIntegrationTest {
                 .andExpect(header().exists("Location"));
 
         // Verify customer was created in database
-        var createdCustomer = objectMapper.readValue(responseBody, CustomerDTO.class);
+        var createdCustomer = objectMapper.readValue(responseBody, CustomerResponse.class);
         
         assertThat(customerRepository.findById(createdCustomer.getId()))
                 .isPresent()

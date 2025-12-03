@@ -9,7 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import tech.seccertificate.certmgmt.dto.template.TemplateDTO;
+import tech.seccertificate.certmgmt.dto.template.TemplateResponse;
 import tech.seccertificate.certmgmt.entity.Template;
 import tech.seccertificate.certmgmt.service.TemplateService;
 
@@ -45,14 +45,14 @@ public class TemplateController {
     /**
      * Create a new template.
      * 
-     * @param templateDTO The template data
-     * @return Created template DTO with 201 status
+     * @param templateResponse The template data
+     * @return Created template response with 201 status
      */
     @PostMapping
-    public ResponseEntity<TemplateDTO> createTemplate(@Valid @RequestBody TemplateDTO templateDTO) {
-        log.info("Creating template: {}", templateDTO.getName());
+    public ResponseEntity<TemplateResponse> createTemplate(@Valid @RequestBody TemplateResponse templateResponse) {
+        log.info("Creating template: {}", templateResponse.getName());
         
-        var template = mapToEntity(templateDTO);
+        var template = mapToEntity(templateResponse);
         var createdTemplate = templateService.createTemplate(template);
         var response = mapToDTO(createdTemplate);
         
@@ -67,10 +67,10 @@ public class TemplateController {
      * Get template by ID.
      * 
      * @param id The template ID
-     * @return Template DTO with 200 status, or 404 if not found
+     * @return Template response with 200 status, or 404 if not found
      */
     @GetMapping("/{id}")
-    public ResponseEntity<TemplateDTO> getTemplate(@PathVariable @NotNull Long id) {
+    public ResponseEntity<TemplateResponse> getTemplate(@PathVariable @NotNull Long id) {
         log.debug("Getting template with ID: {}", id);
         
         return templateService.findById(id)
@@ -83,10 +83,10 @@ public class TemplateController {
      * Get template by code.
      * 
      * @param code The template code
-     * @return Template DTO with 200 status, or 404 if not found
+     * @return Template response with 200 status, or 404 if not found
      */
     @GetMapping("/code/{code}")
-    public ResponseEntity<TemplateDTO> getTemplateByCode(@PathVariable @NotNull String code) {
+    public ResponseEntity<TemplateResponse> getTemplateByCode(@PathVariable @NotNull String code) {
         log.debug("Getting template with code: {}", code);
         
         return templateService.findByCode(code)
@@ -98,10 +98,10 @@ public class TemplateController {
     /**
      * Get all templates in the current tenant context.
      * 
-     * @return List of template DTOs with 200 status
+     * @return List of template responses with 200 status
      */
     @GetMapping
-    public ResponseEntity<List<TemplateDTO>> getAllTemplates() {
+    public ResponseEntity<List<TemplateResponse>> getAllTemplates() {
         log.debug("Getting all templates");
         
         var templates = templateService.findAll();
@@ -116,18 +116,18 @@ public class TemplateController {
      * Update template.
      * 
      * @param id The template ID
-     * @param templateDTO The updated template data
-     * @return Updated template DTO with 200 status, or 404 if not found
+     * @param templateResponse The updated template data
+     * @return Updated template response with 200 status, or 404 if not found
      */
     @PutMapping("/{id}")
-    public ResponseEntity<TemplateDTO> updateTemplate(
+    public ResponseEntity<TemplateResponse> updateTemplate(
             @PathVariable @NotNull Long id,
-            @Valid @RequestBody TemplateDTO templateDTO) {
+            @Valid @RequestBody TemplateResponse templateResponse) {
         log.info("Updating template with ID: {}", id);
 
-        templateDTO.setId(id);
+        templateResponse.setId(id);
         
-        var template = mapToEntity(templateDTO);
+        var template = mapToEntity(templateResponse);
         var updatedTemplate = templateService.updateTemplate(template);
         var response = mapToDTO(updatedTemplate);
         
@@ -154,9 +154,9 @@ public class TemplateController {
     }
 
     /**
-     * Map TemplateDTO to Template entity.
+     * Map TemplateResponse to Template entity.
      */
-    private Template mapToEntity(TemplateDTO dto) {
+    private Template mapToEntity(TemplateResponse dto) {
         String metadataJson = null;
         if (dto.getMetadata() != null) {
             try {
@@ -179,9 +179,9 @@ public class TemplateController {
     }
 
     /**
-     * Map Template entity to TemplateDTO.
+     * Map Template entity to TemplateResponse.
      */
-    private TemplateDTO mapToDTO(Template template) {
+    private TemplateResponse mapToDTO(Template template) {
         Map<String, Object> metadata = null;
         if (template.getMetadata() != null && !template.getMetadata().isEmpty()) {
             try {
@@ -193,7 +193,7 @@ public class TemplateController {
             }
         }
         
-        return TemplateDTO.builder()
+        return TemplateResponse.builder()
                 .id(template.getId())
                 .customerId(template.getCustomerId())
                 .name(template.getName())

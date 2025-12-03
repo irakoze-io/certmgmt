@@ -7,7 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import tech.seccertificate.certmgmt.dto.customer.CreateCustomerRequest;
-import tech.seccertificate.certmgmt.dto.customer.CustomerDTO;
+import tech.seccertificate.certmgmt.dto.customer.CustomerResponse;
 import tech.seccertificate.certmgmt.entity.Customer;
 import tech.seccertificate.certmgmt.service.CustomerService;
 
@@ -37,10 +37,10 @@ public class CustomerController {
      * This endpoint creates a customer and sets up their tenant schema.
      * 
      * @param request The customer creation request
-     * @return Created customer DTO with 201 status
+     * @return Created customer response with 201 status
      */
     @PostMapping
-    public ResponseEntity<CustomerDTO> createCustomer(@Valid @RequestBody CreateCustomerRequest request) {
+    public ResponseEntity<CustomerResponse> createCustomer(@Valid @RequestBody CreateCustomerRequest request) {
         log.info("Creating customer: {}", request.getName());
 
         var customer = mapToEntity(request);
@@ -59,10 +59,10 @@ public class CustomerController {
      * Get customer by ID.
      * 
      * @param id The customer ID
-     * @return Customer DTO with 200 status, or 404 if not found
+     * @return Customer response with 200 status, or 404 if not found
      */
     @GetMapping("/{id}")
-    public ResponseEntity<CustomerDTO> getCustomer(@PathVariable Long id) {
+    public ResponseEntity<CustomerResponse> getCustomer(@PathVariable Long id) {
         log.debug("Getting customer with ID: {}", id);
         
         return customerService.findById(id)
@@ -74,10 +74,10 @@ public class CustomerController {
     /**
      * Get all customers.
      * 
-     * @return List of customer DTOs with 200 status
+     * @return List of customer responses with 200 status
      */
     @GetMapping
-    public ResponseEntity<java.util.List<CustomerDTO>> getAllCustomers() {
+    public ResponseEntity<java.util.List<CustomerResponse>> getAllCustomers() {
         log.debug("Getting all customers");
         
         var customers = customerService.findAll();
@@ -102,10 +102,10 @@ public class CustomerController {
     }
 
     /**
-     * Map Customer entity to CustomerDTO.
+     * Map Customer entity to CustomerResponse.
      */
-    private CustomerDTO mapToDTO(Customer customer) {
-        return CustomerDTO.builder()
+    private CustomerResponse mapToDTO(Customer customer) {
+        return CustomerResponse.builder()
                 .id(customer.getId())
                 .tenantSchema(customer.getTenantSchema())
                 .name(customer.getName())
