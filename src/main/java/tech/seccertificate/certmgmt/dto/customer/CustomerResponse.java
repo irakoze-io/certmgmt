@@ -1,6 +1,7 @@
 package tech.seccertificate.certmgmt.dto.customer;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,6 +15,7 @@ import java.util.Map;
  * Response DTO for Customer entity.
  * Used for API responses to expose customer information.
  */
+@Schema(description = "Customer response containing customer information")
 @Data
 @Builder
 @NoArgsConstructor
@@ -21,53 +23,33 @@ import java.util.Map;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class CustomerResponse {
 
-    /**
-     * Customer unique identifier.
-     */
+    @Schema(description = "Customer unique identifier", example = "1")
     private Long id;
 
-    /**
-     * Tenant schema name (read-only, set during creation).
-     */
+    @Schema(description = "Tenant schema name (read-only, set during creation)", example = "acme_corp")
     private String tenantSchema;
 
-    /**
-     * Customer name.
-     */
+    @Schema(description = "Customer name", example = "Acme Corporation")
     private String name;
 
-    /**
-     * Customer domain (unique identifier).
-     */
+    @Schema(description = "Customer domain (unique identifier)", example = "acme.example.com")
     private String domain;
 
-    /**
-     * Customer settings as JSON.
-     */
+    @Schema(description = "Customer settings as key-value pairs", example = "{\"theme\": \"dark\", \"language\": \"en\"}")
     private Map<String, Object> settings;
 
-    /**
-     * Customer status.
-     */
+    @Schema(description = "Customer status", example = "ACTIVE", allowableValues = {"ACTIVE", "SUSPENDED", "TRIAL", "CANCELLED"})
     private Customer.CustomerStatus status;
 
-    /**
-     * Maximum number of users allowed.
-     */
+    @Schema(description = "Maximum number of users allowed", example = "100")
     private Integer maxUsers;
 
-    /**
-     * Maximum certificates per month.
-     */
+    @Schema(description = "Maximum certificates per month", example = "10000")
     private Integer maxCertificatesPerMonth;
 
-    /**
-     * Date when customer was created.
-     */
+    @Schema(description = "Date when customer was created", example = "2024-01-15T10:30:00")
     private LocalDateTime createdDate;
 
-    /**
-     * Date when customer was last updated.
-     */
+    @Schema(description = "Date when customer was last updated", example = "2024-01-20T14:45:00")
     private LocalDateTime updatedDate;
 }
