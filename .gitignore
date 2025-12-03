@@ -53,3 +53,4 @@ postgres-data/
 /src/main/java/tech/seccertificate/certmgmt/config/README_TENANT_SCHEMA_SWITCHING.md
 /INTEGRATION_TESTS_PROGRESS.md
 /TESTCONTAINERS_SETUP.md
+/E2E_TEST_COVERAGE.md
