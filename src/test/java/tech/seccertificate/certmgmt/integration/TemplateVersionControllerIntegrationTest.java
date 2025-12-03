@@ -10,6 +10,7 @@ import tech.seccertificate.certmgmt.entity.Customer;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
 
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -25,7 +26,10 @@ class TemplateVersionControllerIntegrationTest extends BaseIntegrationTest {
     void setUp() {
         cleanup();
         initMockMvc();
-        testCustomer = createTestCustomer("Test Customer", "test.example.com", "test_customer");
+        var uniqueName = UUID.randomUUID().toString()
+                .replaceAll("-", "")
+                .replaceAll("[0-9]", "");
+        testCustomer = createTestCustomer("Test Customer", "test.example.com", uniqueName);
         setTenantContext(testCustomer.getId());
     }
 
@@ -65,8 +69,9 @@ class TemplateVersionControllerIntegrationTest extends BaseIntegrationTest {
     @DisplayName("GET /api/templates/{templateId}/versions - Should return all versions")
     void getTemplateVersions_ReturnsAllVersions() throws Exception {
         // Act & Assert
-        mockMvc.perform(
-                        withTenantHeader(get("/api/templates/{templateId}/versions", 1L), testCustomer.getId()))
+        mockMvc
+                .perform(withTenantHeader(get("/api/templates/{templateId}/versions", 1L),
+                                testCustomer.getId()))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
