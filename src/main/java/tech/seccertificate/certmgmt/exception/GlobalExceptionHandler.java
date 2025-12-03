@@ -17,10 +17,10 @@ import java.util.Map;
 /**
  * Global exception handler for REST controllers.
  * Provides centralized exception handling and consistent error responses.
- * 
+ *
  * <p>This handler catches exceptions thrown by controllers and converts them
  * into appropriate HTTP responses following RFC 7807 (Problem Details for HTTP APIs).
- * 
+ *
  * <p>All error responses conform to the RFC 7807 standard:
  * <ul>
  *   <li>{@code type} - Problem type URI</li>
@@ -33,7 +33,7 @@ import java.util.Map;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-    
+
     private static final String PROBLEM_BASE_URI = "https://api.certmgmt.example.com/problems";
 
     /**
@@ -84,6 +84,19 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
+    @ExceptionHandler(ApplicationObjectNotFoundException.class)
+    public ResponseEntity<ErrorResponse>
+    handleApplicationObjectNotFoundException(ApplicationObjectNotFoundException ex) {
+        var error = ErrorResponse.builder()
+                .type(URI.create(PROBLEM_BASE_URI + "/resource-not-found"))
+                .title("Application Object Not Found")
+                .status(HttpStatus.NOT_FOUND.value())
+                .detail(ex.getMessage())
+                .instance(URI.create(getRequestPath()))
+                .build();
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
     /**
      * Handle tenant schema creation exceptions.
      */
@@ -106,14 +119,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidationExceptions(MethodArgumentNotValidException ex) {
         log.warn("Validation failed: {}", ex.getMessage());
-        
+
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach(error -> {
             String fieldName = ((FieldError) error).getField();
             String errorMessage = error.getDefaultMessage();
             errors.put(fieldName, errorMessage);
         });
-        
+
         var error = ErrorResponse.builder()
                 .type(URI.create(PROBLEM_BASE_URI + "/validation-failed"))
                 .title("Validation Failed")
@@ -176,7 +189,7 @@ public class GlobalExceptionHandler {
     /**
      * Get the current request path from the servlet request.
      * Returns a relative path suitable for use as a URI instance.
-     * 
+     *
      * @return The request path, or "/" if not available
      */
     private String getRequestPath() {

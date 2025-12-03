@@ -12,6 +12,7 @@ import tech.seccertificate.certmgmt.entity.Template;
 import tech.seccertificate.certmgmt.service.TemplateService;
 
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -32,7 +33,10 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
         initMockMvc();
         // Use unique schema and domain to avoid conflicts
         var timestamp = System.currentTimeMillis();
-        var uniqueSchema = "TST_CUS" + timestamp;
+        var uniqueSchema = UUID.randomUUID().toString()
+                .replaceAll("-", "")
+                .replaceAll("[0-9]", "");
+
         var uniqueDomain = "test" + timestamp + ".example.com";
         testCustomer = createTestCustomer("Test Customer", uniqueDomain, uniqueSchema);
         setTenantContext(testCustomer.getId());

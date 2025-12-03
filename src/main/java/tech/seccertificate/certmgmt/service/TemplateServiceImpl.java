@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tech.seccertificate.certmgmt.config.TenantSchemaValidator;
 import tech.seccertificate.certmgmt.entity.Template;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
+import tech.seccertificate.certmgmt.exception.TemplateNotFoundException;
 import tech.seccertificate.certmgmt.repository.TemplateRepository;
 import tech.seccertificate.certmgmt.repository.TemplateVersionRepository;
 
@@ -102,7 +103,7 @@ public class TemplateServiceImpl implements TemplateService {
         tenantSchemaValidator.validateTenantSchema("updateTemplate");
 
         var existingTemplate = templateRepository.findById(template.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Template not found: " + template.getId()));
+                .orElseThrow(() -> new TemplateNotFoundException(template));
 
         validateTemplate(template);
 
