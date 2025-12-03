@@ -3,6 +3,8 @@ package tech.seccertificate.certmgmt.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -32,6 +34,7 @@ public class TemplateVersion {
     @Column(name = "html_content", nullable = false, columnDefinition = "TEXT")
     private String htmlContent;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "field_schema", columnDefinition = "jsonb", nullable = false)
     private String fieldSchema;
 
@@ -39,6 +42,7 @@ public class TemplateVersion {
     @Column(name = "css_styles", columnDefinition = "TEXT")
     private String cssStyles;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String settings;
 

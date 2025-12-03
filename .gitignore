@@ -32,11 +32,25 @@ build/
 /dist/
 /nbdist/
 /.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
 
 ### VS Code ###
 .vscode/
 /TENANT_ARCHITECTURE_EXPLANATION.md
 /work_plan.md
+
+postgres-data/
+
+*.sh
+.cursor/
+/CLAUDE.md
+/Certificate_Management_API.postman_collection.json
+/GRADLE_FILES_TO_COMMIT.md
+/GRADLE_MIGRATION.md
+/POSTMAN_COLLECTION_README.md
+/Tenant_Schema_Switching_Guide.md
+/docs/
+/qodana.yaml
+/src/main/java/tech/seccertificate/certmgmt/config/README_TENANT_SCHEMA_SWITCHING.md
+/INTEGRATION_TESTS_PROGRESS.md
+/TESTCONTAINERS_SETUP.md
+/E2E_TEST_COVERAGE.md

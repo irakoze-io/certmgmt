@@ -3,7 +3,9 @@ package tech.seccertificate.certmgmt.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -30,9 +32,11 @@ public class Certificate {
     @Column(name = "certificate_number", unique = true, nullable = false, length = 100)
     private String certificateNumber;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "recipient_data", columnDefinition = "jsonb", nullable = false)
     private String recipientData;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String metadata;
 

@@ -299,16 +299,32 @@ public class CustomerServiceImpl implements CustomerService {
 
         try (var connection = dataSource.getConnection()) {
             var sanitized = sanitizeSchemaName(schemaName);
+            String sql = "SELECT create_tenant_schema(?)";
+            log.debug("Executing SQL: {} with parameter: {}", sql, sanitized);
 
-            try (var statement = connection.prepareStatement("SELECT create_tenant_schema(?)")) {
+            try (var statement = connection.prepareStatement(sql)) {
                 statement.setString(1, sanitized);
-                statement.execute();
+                boolean hasResult = statement.execute();
+                log.debug("Function execution completed. Has result set: {}", hasResult);
+                
+                // For VOID functions, we might need to consume any result set
+                if (hasResult) {
+                    try (var resultSet = statement.getResultSet()) {
+                        // Consume the result set even if empty
+                        while (resultSet.next()) {
+                            // VOID functions return no rows, but we consume anyway
+                        }
+                    }
+                }
+                
                 log.info("Successfully created tenant schema: {}", sanitized);
             }
         } catch (SQLException e) {
-            log.error("SQL error while creating tenant schema: {}", schemaName, e);
+            log.error("SQL error while creating tenant schema '{}': SQLState={}, ErrorCode={}, Message={}", 
+                    schemaName, e.getSQLState(), e.getErrorCode(), e.getMessage(), e);
             throw new TenantSchemaCreationException(
-                    String.format("Failed to create tenant schema '%s': %s", schemaName, e.getMessage()), e
+                    String.format("Failed to create tenant schema '%s': %s (SQLState: %s, ErrorCode: %d)", 
+                            schemaName, e.getMessage(), e.getSQLState(), e.getErrorCode()), e
             );
         } catch (Exception e) {
             log.error("Unexpected error while creating tenant schema: {}", schemaName, e);
