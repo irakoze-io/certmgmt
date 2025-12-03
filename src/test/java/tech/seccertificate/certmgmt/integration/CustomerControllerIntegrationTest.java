@@ -10,6 +10,8 @@ import tech.seccertificate.certmgmt.dto.customer.CreateCustomerRequest;
 import tech.seccertificate.certmgmt.dto.customer.CustomerDTO;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
 
+import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
@@ -43,8 +45,11 @@ class CustomerControllerIntegrationTest extends BaseIntegrationTest {
     @DisplayName("POST /api/customers - Should create a new customer")
     void createCustomer_ValidRequest_ReturnsCreated() throws Exception {
         // Arrange - use unique schema name to avoid conflicts
-        var uniqueSchema = "TST_CUS" + System.currentTimeMillis();
-        var uniqueDomain = "test" + System.currentTimeMillis() + ".example.com";
+        var uniqueSchema = UUID.randomUUID().toString()
+                .replaceAll("-", "")
+                .replaceAll("[0-9]", "");
+
+        var uniqueDomain = uniqueSchema + System.currentTimeMillis() + ".example.com";
         var request = CreateCustomerRequest.builder()
                 .name("Test Customer")
                 .domain(uniqueDomain)
