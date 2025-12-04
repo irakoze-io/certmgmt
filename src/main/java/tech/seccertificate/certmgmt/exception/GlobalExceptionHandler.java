@@ -9,9 +9,11 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import tech.seccertificate.certmgmt.dto.Response;
 
-import java.net.URI;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -19,189 +21,183 @@ import java.util.Map;
  * Provides centralized exception handling and consistent error responses.
  *
  * <p>This handler catches exceptions thrown by controllers and converts them
- * into appropriate HTTP responses following RFC 7807 (Problem Details for HTTP APIs).
+ * into appropriate HTTP responses using the unified {@link Response} envelope structure.
  *
- * <p>All error responses conform to the RFC 7807 standard:
+ * <p>All error responses follow the unified API response format:
  * <ul>
- *   <li>{@code type} - Problem type URI</li>
- *   <li>{@code title} - Short summary</li>
- *   <li>{@code status} - HTTP status code</li>
- *   <li>{@code detail} - Detailed message</li>
- *   <li>{@code instance} - Request URI</li>
+ *   <li>{@code success} - Always false for errors</li>
+ *   <li>{@code message} - Human-readable error message</li>
+ *   <li>{@code error} - Structured error information with errorCode, type, details, and data</li>
+ * </ul>
+ *
+ * <p>Exception categories handled:
+ * <ul>
+ *   <li>Validation Errors - MethodArgumentNotValidException, IllegalArgumentException</li>
+ *   <li>Business Exceptions - TenantException, CustomerNotFoundException, ApplicationObjectNotFoundException</li>
+ *   <li>General Exceptions - All other unhandled exceptions</li>
  * </ul>
  */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    private static final String PROBLEM_BASE_URI = "https://api.certmgmt.example.com/problems";
+    // ==================== Business Exceptions ====================
 
     /**
      * Handle tenant not found exceptions.
      */
     @ExceptionHandler(TenantNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleTenantNotFoundException(TenantNotFoundException ex) {
+    public ResponseEntity<Response<Void>> handleTenantNotFoundException(TenantNotFoundException ex) {
         log.warn("Tenant not found: {}", ex.getMessage());
-        var error = ErrorResponse.builder()
-                .type(URI.create(PROBLEM_BASE_URI + "/tenant-not-found"))
-                .title("Tenant Not Found")
-                .status(HttpStatus.NOT_FOUND.value())
-                .detail(ex.getMessage())
-                .instance(URI.create(getRequestPath()))
-                .build();
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        var response = Response.<Void>error(
+                ex.getMessage(),
+                "TENANT_NOT_FOUND",
+                "Resource Not Found",
+                List.of(ex.getMessage())
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
     /**
-     * Handle tenant-related exceptions.
+     * Handle tenant-related exceptions (business logic errors).
      */
     @ExceptionHandler(TenantException.class)
-    public ResponseEntity<ErrorResponse> handleTenantException(TenantException ex) {
+    public ResponseEntity<Response<Void>> handleTenantException(TenantException ex) {
         log.error("Tenant exception: {}", ex.getMessage(), ex);
-        var error = ErrorResponse.builder()
-                .type(URI.create(PROBLEM_BASE_URI + "/tenant-error"))
-                .title("Tenant Error")
-                .status(HttpStatus.BAD_REQUEST.value())
-                .detail(ex.getMessage())
-                .instance(URI.create(getRequestPath()))
-                .build();
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        var response = Response.<Void>error(
+                ex.getMessage(),
+                "TENANT_ERROR",
+                "Business Logic Error",
+                List.of(ex.getMessage())
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     /**
      * Handle customer not found exceptions.
      */
     @ExceptionHandler(CustomerNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleCustomerNotFoundException(CustomerNotFoundException ex) {
+    public ResponseEntity<Response<Void>> handleCustomerNotFoundException(CustomerNotFoundException ex) {
         log.warn("Customer not found: {}", ex.getMessage());
-        var error = ErrorResponse.builder()
-                .type(URI.create(PROBLEM_BASE_URI + "/customer-not-found"))
-                .title("Customer Not Found")
-                .status(HttpStatus.NOT_FOUND.value())
-                .detail(ex.getMessage())
-                .instance(URI.create(getRequestPath()))
-                .build();
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
-    }
-
-    @ExceptionHandler(ApplicationObjectNotFoundException.class)
-    public ResponseEntity<ErrorResponse>
-    handleApplicationObjectNotFoundException(ApplicationObjectNotFoundException ex) {
-        var error = ErrorResponse.builder()
-                .type(URI.create(PROBLEM_BASE_URI + "/resource-not-found"))
-                .title("Application Object Not Found")
-                .status(HttpStatus.NOT_FOUND.value())
-                .detail(ex.getMessage())
-                .instance(URI.create(getRequestPath()))
-                .build();
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        var response = Response.<Void>error(
+                ex.getMessage(),
+                "CUSTOMER_NOT_FOUND",
+                "Resource Not Found",
+                List.of(ex.getMessage())
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
     /**
-     * Handle tenant schema creation exceptions.
+     * Handle application object not found exceptions (generic resource not found).
+     */
+    @ExceptionHandler(ApplicationObjectNotFoundException.class)
+    public ResponseEntity<Response<Void>> handleApplicationObjectNotFoundException(ApplicationObjectNotFoundException ex) {
+        log.warn("Resource not found: {}", ex.getMessage());
+        var response = Response.<Void>error(
+                ex.getMessage(),
+                "RESOURCE_NOT_FOUND",
+                "Resource Not Found",
+                List.of(ex.getMessage())
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    /**
+     * Handle tenant schema creation exceptions (system errors).
      */
     @ExceptionHandler(TenantSchemaCreationException.class)
-    public ResponseEntity<ErrorResponse> handleTenantSchemaCreationException(TenantSchemaCreationException ex) {
+    public ResponseEntity<Response<Void>> handleTenantSchemaCreationException(TenantSchemaCreationException ex) {
         log.error("Tenant schema creation failed: {}", ex.getMessage(), ex);
-        var error = ErrorResponse.builder()
-                .type(URI.create(PROBLEM_BASE_URI + "/schema-creation-failed"))
-                .title("Schema Creation Failed")
-                .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                .detail(ex.getMessage())
-                .instance(URI.create(getRequestPath()))
-                .build();
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        var response = Response.<Void>error(
+                ex.getMessage(),
+                "SCHEMA_CREATION_FAILED",
+                "System Error",
+                List.of(ex.getMessage())
+        );
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
+
+    // ==================== Validation Errors ====================
 
     /**
      * Handle validation exceptions (from @Valid annotations).
+     * Extracts field-level validation errors and formats them according to unified response structure.
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleValidationExceptions(MethodArgumentNotValidException ex) {
+    public ResponseEntity<Response<Void>> handleValidationExceptions(MethodArgumentNotValidException ex) {
         log.warn("Validation failed: {}", ex.getMessage());
 
-        Map<String, String> errors = new HashMap<>();
+        Map<String, String> fieldErrors = new HashMap<>();
+        List<String> errorDetails = new ArrayList<>();
+        
         ex.getBindingResult().getAllErrors().forEach(error -> {
-            String fieldName = ((FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
-            errors.put(fieldName, errorMessage);
+            if (error instanceof FieldError fieldError) {
+                String fieldName = fieldError.getField();
+                String errorMessage = fieldError.getDefaultMessage();
+                fieldErrors.put(fieldName, errorMessage);
+                errorDetails.add(fieldName + ": " + errorMessage);
+            } else {
+                String errorMessage = error.getDefaultMessage();
+                errorDetails.add(errorMessage);
+            }
         });
 
-        var error = ErrorResponse.builder()
-                .type(URI.create(PROBLEM_BASE_URI + "/validation-failed"))
-                .title("Validation Failed")
-                .status(HttpStatus.BAD_REQUEST.value())
-                .detail("Request validation failed. See 'errors' field for field-level details.")
-                .instance(URI.create(getRequestPath()))
-                .errors(errors)
-                .build();
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        var response = Response.<Void>error(
+                "Request validation failed. Please check the error details.",
+                "VALIDATION_FAILED",
+                "Validation Error",
+                errorDetails,
+                Map.of("fieldErrors", fieldErrors)
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     /**
      * Handle illegal argument exceptions (from service layer validation).
      */
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ErrorResponse> handleIllegalArgumentException(IllegalArgumentException ex) {
+    public ResponseEntity<Response<Void>> handleIllegalArgumentException(IllegalArgumentException ex) {
         log.warn("Invalid argument: {}", ex.getMessage());
-        var error = ErrorResponse.builder()
-                .type(URI.create(PROBLEM_BASE_URI + "/invalid-request"))
-                .title("Invalid Request")
-                .status(HttpStatus.BAD_REQUEST.value())
-                .detail(ex.getMessage())
-                .instance(URI.create(getRequestPath()))
-                .build();
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        var response = Response.<Void>error(
+                ex.getMessage(),
+                "INVALID_REQUEST",
+                "Validation Error",
+                List.of(ex.getMessage())
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
     /**
      * Handle illegal state exceptions (e.g., tenant context not set).
      */
     @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<ErrorResponse> handleIllegalStateException(IllegalStateException ex) {
+    public ResponseEntity<Response<Void>> handleIllegalStateException(IllegalStateException ex) {
         log.error("Illegal state: {}", ex.getMessage(), ex);
-        var error = ErrorResponse.builder()
-                .type(URI.create(PROBLEM_BASE_URI + "/invalid-state"))
-                .title("Invalid State")
-                .status(HttpStatus.BAD_REQUEST.value())
-                .detail(ex.getMessage())
-                .instance(URI.create(getRequestPath()))
-                .build();
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        var response = Response.<Void>error(
+                ex.getMessage(),
+                "INVALID_STATE",
+                "Business Logic Error",
+                List.of(ex.getMessage())
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
+
+    // ==================== General Exceptions ====================
 
     /**
      * Handle all other unhandled exceptions.
+     * This is a catch-all handler for any exceptions not specifically handled above.
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
+    public ResponseEntity<Response<Void>> handleGenericException(Exception ex) {
         log.error("Unexpected error occurred", ex);
-        var error = ErrorResponse.builder()
-                .type(URI.create(PROBLEM_BASE_URI + "/internal-server-error"))
-                .title("Internal Server Error")
-                .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
-                .detail("An unexpected error occurred. Please contact support.")
-                .instance(URI.create(getRequestPath()))
-                .build();
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
-    }
-
-    /**
-     * Get the current request path from the servlet request.
-     * Returns a relative path suitable for use as a URI instance.
-     *
-     * @return The request path, or "/" if not available
-     */
-    private String getRequestPath() {
-        try {
-            var attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-            if (attributes != null) {
-                var request = attributes.getRequest();
-                return request.getRequestURI();
-            }
-        } catch (Exception e) {
-            log.debug("Could not retrieve request path", e);
-        }
-        return "/";
+        var response = Response.<Void>error(
+                "An unexpected error occurred. Please contact support.",
+                "INTERNAL_SERVER_ERROR",
+                "System Error",
+                List.of("An internal server error occurred. Please try again later or contact support if the problem persists.")
+        );
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 }
