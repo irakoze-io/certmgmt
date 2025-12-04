@@ -12,8 +12,7 @@ import org.springframework.stereotype.Component;
  * Schema switching is handled by TenantConnectionProvider and TenantIdentifierResolver.
  *
  * @author Ivan-Beaudry Irakoze
- * @since Oct 5, 2024
- * @Project AuthHub
+ * @since Dec 4, 2024
  */
 @Slf4j
 @Component

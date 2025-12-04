@@ -5,8 +5,7 @@ package tech.seccertificate.certmgmt.config;
  * This allows the application to know which tenant schema to use for database operations.
  *
  * @author Ivan-Beaudry Irakoze
- * @since Oct 5, 2024
- * @Project AuthHub
+ * @since Dec 4, 2024
  */
 public class TenantContext {
     

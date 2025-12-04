@@ -9,7 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import tech.seccertificate.certmgmt.config.JacksonConfig;
-import tech.seccertificate.certmgmt.config.JpaConfig;
+import tech.seccertificate.certmgmt.config.MultiTenantConfig;
 import tech.seccertificate.certmgmt.config.TenantContext;
 import tech.seccertificate.certmgmt.config.TenantIdentifierResolver;
 import tech.seccertificate.certmgmt.config.TenantSchemaValidator;
@@ -185,10 +185,10 @@ class CertmgmtApplicationTests {
     }
 
     @Test
-    @DisplayName("JpaConfig bean should be available")
-    void jpaConfigBeanShouldBeAvailable() {
-        assertThat(applicationContext.getBean(JpaConfig.class))
-                .as("JpaConfig should be available")
+    @DisplayName("MultiTenantConfig bean should be available")
+    void multiTenantConfigBeanShouldBeAvailable() {
+        assertThat(applicationContext.getBean(MultiTenantConfig.class))
+                .as("MultiTenantConfig should be available")
                 .isNotNull();
     }
 
@@ -258,7 +258,7 @@ class CertmgmtApplicationTests {
         
         // Config classes
         assertThat(applicationContext.getBean(WebConfig.class)).isNotNull();
-        assertThat(applicationContext.getBean(JpaConfig.class)).isNotNull();
+        assertThat(applicationContext.getBean(MultiTenantConfig.class)).isNotNull();
         assertThat(applicationContext.getBean(JacksonConfig.class)).isNotNull();
     }
 }

@@ -12,8 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
  * while Hibernate handles the actual schema switching.
  *
  * @author Ivan-Beaudry Irakoze
- * @since Oct 5, 2024
- * @Project AuthHub
+ * @since Dec 4, 2024
  */
 @Component
 @Slf4j

@@ -1,18 +1,14 @@
 package tech.seccertificate.certmgmt.integration.e2e;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MvcResult;
-import tech.seccertificate.certmgmt.dto.certificate.CertificateDTO;
+import tech.seccertificate.certmgmt.dto.certificate.CertificateResponse;
 import tech.seccertificate.certmgmt.dto.certificate.GenerateCertificateRequest;
-import tech.seccertificate.certmgmt.dto.template.TemplateDTO;
-import tech.seccertificate.certmgmt.dto.template.TemplateVersionDTO;
-import tech.seccertificate.certmgmt.entity.Customer;
+import tech.seccertificate.certmgmt.dto.template.TemplateResponse;
+import tech.seccertificate.certmgmt.dto.template.TemplateVersionResponse;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
 import tech.seccertificate.certmgmt.integration.BaseIntegrationTest;
 
@@ -39,10 +35,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("Certificate Generation End-to-End Tests")
 class CertificateGenerationE2ETest extends BaseIntegrationTest {
 
-    private Customer testCustomer;
-    private Long templateId;
-    private UUID templateVersionId;
-
     @BeforeEach
     void setUp() {
         cleanup();
@@ -62,8 +54,8 @@ class CertificateGenerationE2ETest extends BaseIntegrationTest {
                 .replaceAll("-", "")
                 .replaceAll("[0-9]", "");
         var uniqueDomain = uniqueSchema + System.currentTimeMillis() + ".example.com";
-        
-        testCustomer = createTestCustomer("E2E Test Customer", uniqueDomain, uniqueSchema);
+
+        var testCustomer = createTestCustomer("E2E Test Customer", uniqueDomain, uniqueSchema);
         setTenantContext(testCustomer.getId());
         
         assertThat(testCustomer.getId()).isNotNull();
@@ -71,7 +63,7 @@ class CertificateGenerationE2ETest extends BaseIntegrationTest {
 
         // Step 2: Create Template
         var templateCode = "E2E_TEMPLATE_" + System.currentTimeMillis();
-        var templateDTO = TemplateDTO.builder()
+        var templateDTO = TemplateResponse.builder()
                 .customerId(testCustomer.getId())
                 .name("E2E Test Template")
                 .code(templateCode)
@@ -91,12 +83,12 @@ class CertificateGenerationE2ETest extends BaseIntegrationTest {
 
         var createdTemplate = objectMapper.readValue(
                 templateResult.getResponse().getContentAsString(), 
-                TemplateDTO.class);
-        templateId = createdTemplate.getId();
+                TemplateResponse.class);
+        var templateId = createdTemplate.getId();
         assertThat(templateId).isNotNull();
 
         // Step 3: Create Template Version
-        var versionDTO = TemplateVersionDTO.builder()
+        var versionDTO = TemplateVersionResponse.builder()
                 .version(1)
                 .htmlContent("<html><body><h1>Certificate for {{name}}</h1><p>Email: {{email}}</p></body></html>")
                 .fieldSchema(Map.of(
@@ -120,8 +112,8 @@ class CertificateGenerationE2ETest extends BaseIntegrationTest {
 
         var createdVersion = objectMapper.readValue(
                 versionResult.getResponse().getContentAsString(),
-                TemplateVersionDTO.class);
-        templateVersionId = createdVersion.getId();
+                TemplateVersionResponse.class);
+        var templateVersionId = createdVersion.getId();
         assertThat(templateVersionId).isNotNull();
 
         // Step 4: Generate Certificate
@@ -147,7 +139,7 @@ class CertificateGenerationE2ETest extends BaseIntegrationTest {
 
         var createdCertificate = objectMapper.readValue(
                 certificateResult.getResponse().getContentAsString(),
-                CertificateDTO.class);
+                CertificateResponse.class);
         assertThat(createdCertificate.getId()).isNotNull();
         assertThat(createdCertificate.getCertificateNumber()).isEqualTo("CERT-E2E-001");
 
@@ -172,7 +164,7 @@ class CertificateGenerationE2ETest extends BaseIntegrationTest {
 
         // Create Template for Customer 1
         var templateCode1 = "TEMPLATE_C1_" + System.currentTimeMillis();
-        var templateDTO1 = TemplateDTO.builder()
+        var templateDTO1 = TemplateResponse.builder()
                 .customerId(customer1.getId())
                 .name("Customer 1 Template")
                 .code(templateCode1)
@@ -188,7 +180,7 @@ class CertificateGenerationE2ETest extends BaseIntegrationTest {
 
         var template1 = objectMapper.readValue(
                 templateResult1.getResponse().getContentAsString(), 
-                TemplateDTO.class);
+                TemplateResponse.class);
 
         // Create Customer 2
         var schema2 = UUID.randomUUID().toString().replaceAll("-", "").replaceAll("[0-9]", "");
