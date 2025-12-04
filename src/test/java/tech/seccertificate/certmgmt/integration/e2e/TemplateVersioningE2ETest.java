@@ -21,7 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * End-to-end test for template versioning workflow.
- *
+ * 
  * <p>Tests the complete versioning flow:
  * <ol>
  *   <li>Create template</li>
@@ -41,11 +41,11 @@ class TemplateVersioningE2ETest extends BaseIntegrationTest {
     void setUp() throws Exception {
         cleanup();
         initMockMvc();
-
+        
         var uniqueSchema = UUID.randomUUID().toString()
                 .replaceAll("-", "")
                 .replaceAll("[0-9]", "");
-        testCustomer = createTestCustomer("Versioning Test Customer",
+        testCustomer = createTestCustomer("Versioning Test Customer", 
                 uniqueSchema + ".example.com", uniqueSchema);
         setTenantContext(testCustomer.getId());
 
@@ -142,7 +142,7 @@ class TemplateVersioningE2ETest extends BaseIntegrationTest {
 
         // Step 4: Get specific version
         mockMvc.perform(
-                        withTenantHeader(get("/api/templates/{templateId}/versions/{versionId}",
+                        withTenantHeader(get("/api/templates/{templateId}/versions/{versionId}", 
                                 templateId, version2.getId()), testCustomer.getId()))
                 .andDo(print())
                 .andExpect(status().isOk())
@@ -187,7 +187,7 @@ class TemplateVersioningE2ETest extends BaseIntegrationTest {
                 .build();
 
         mockMvc.perform(
-                        withTenantHeader(put("/api/templates/{templateId}/versions/{versionId}",
+                        withTenantHeader(put("/api/templates/{templateId}/versions/{versionId}", 
                                 templateId, version1.getId()), testCustomer.getId())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(activatedVersionDTO)))

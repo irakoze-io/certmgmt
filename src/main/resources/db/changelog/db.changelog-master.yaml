@@ -21,5 +21,3 @@ databaseChangeLog:
       file: db/changelog/changes/010-create-audit-log-table-reference.yaml
   - include:
       file: db/changelog/changes/011-update-tenant-schema-function-template-types.yaml
-  - include:
-      file: db/changelog/changes/012-drop-public-template-table.yaml
