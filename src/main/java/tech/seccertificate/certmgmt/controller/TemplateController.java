@@ -120,21 +120,21 @@ public class TemplateController {
      * @return List of template responses with 200 status
      */
     @GetMapping
-    public ResponseEntity<List<TemplateResponse>> getAllTemplates() {
+    public ResponseEntity<Response<List<TemplateResponse>>> getAllTemplates() {
         log.debug("Getting all templates");
-        
+
         var templates = templateService.findAll();
         var templateDTOs = templates.stream()
                 .map(this::mapToDTO)
                 .toList();
-        
-        return ResponseEntity.ok(templateDTOs);
+
+        return ResponseEntity.ok(Response.success(templateDTOs));
     }
 
     /**
      * Update template.
      *
-     * @param id The template ID
+     * @param id               The template ID
      * @param templateResponse The updated template data
      * @return Updated template response with 200 status, or 404 if not found
      */

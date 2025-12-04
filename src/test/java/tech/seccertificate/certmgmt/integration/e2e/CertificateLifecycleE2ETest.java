@@ -41,7 +41,6 @@ class CertificateLifecycleE2ETest extends BaseIntegrationTest {
 
     private Customer testCustomer;
     private UUID templateVersionId;
-    private Long templateId;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -71,7 +70,7 @@ class CertificateLifecycleE2ETest extends BaseIntegrationTest {
                 .andReturn();
 
         var templateResponse = objectMapper.readTree(templateResult.getResponse().getContentAsString());
-        templateId = templateResponse.get("data").get("id").asLong();
+        Long templateId = templateResponse.get("data").get("id").asLong();
 
         // Setup: Create template version
         var versionDTO = TemplateVersionResponse.builder()
@@ -409,7 +408,7 @@ class CertificateLifecycleE2ETest extends BaseIntegrationTest {
     @DisplayName("E2E: Certificate download URL generation")
     void certificateDownloadUrlGeneration() throws Exception {
         // Create a certificate
-        var certNumber = "DOWNLOAD-URL-" + System.currentTimeMillis();
+        var certNumber = "URL" + System.currentTimeMillis();
         var generateRequest = GenerateCertificateRequest.builder()
                 .templateVersionId(templateVersionId)
                 .certificateNumber(certNumber)
@@ -471,9 +470,8 @@ class CertificateLifecycleE2ETest extends BaseIntegrationTest {
      * Generate a unique schema name for testing.
      */
     private String generateUniqueSchema() {
-        return "life_" + UUID.randomUUID().toString()
+        return "life" + UUID.randomUUID().toString()
                 .replaceAll("-", "")
-                .replaceAll("[0-9]", "")
-                .substring(0, 10);
+                .replaceAll("[0-9]", "");
     }
 }
