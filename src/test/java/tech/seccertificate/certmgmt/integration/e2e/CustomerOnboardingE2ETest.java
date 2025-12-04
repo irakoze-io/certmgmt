@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import tech.seccertificate.certmgmt.dto.customer.CreateCustomerRequest;
-import tech.seccertificate.certmgmt.dto.customer.CustomerResponse;
 import tech.seccertificate.certmgmt.entity.Customer;
 import tech.seccertificate.certmgmt.integration.BaseIntegrationTest;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
@@ -156,8 +155,8 @@ class CustomerOnboardingE2ETest extends BaseIntegrationTest {
                 .name("Company Alpha")
                 .domain(schema1 + ".alpha.com")
                 .tenantSchema(schema1)
-                .maxUsers(25)
-                .maxCertificatesPerMonth(2500)
+                .maxUsers(10)
+                .maxCertificatesPerMonth(750)
                 .build();
 
         var result1 = mockMvc.perform(post("/api/customers")
@@ -175,8 +174,8 @@ class CustomerOnboardingE2ETest extends BaseIntegrationTest {
                 .name("Company Beta")
                 .domain(schema2 + ".beta.com")
                 .tenantSchema(schema2)
-                .maxUsers(100)
-                .maxCertificatesPerMonth(10000)
+                .maxUsers(10)
+                .maxCertificatesPerMonth(500)
                 .build();
 
         var result2 = mockMvc.perform(post("/api/customers")
@@ -306,9 +305,8 @@ class CustomerOnboardingE2ETest extends BaseIntegrationTest {
      * Generate a unique schema name for testing.
      */
     private String generateUniqueSchema() {
-        return "e2e_" + UUID.randomUUID().toString()
+        return "e2e" + UUID.randomUUID().toString()
                 .replaceAll("-", "")
-                .replaceAll("[0-9]", "")
-                .substring(0, 10);
+                .replaceAll("[0-9]", "");
     }
 }
