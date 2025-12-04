@@ -1,37 +1,39 @@
 package tech.seccertificate.certmgmt.config;
 
-import lombok.RequiredArgsConstructor;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * Web configuration to register tenant request interceptor.
+ * Web configuration for multi-tenant support.
+ *
+ * Based on Level 2: Schema Separation Implementation pattern from:
+ * https://medium.com/@shahharsh172/building-secure-multi-tenant-applications-with-spring-boot
+ *
+ * Registers TenantResolutionFilter as a Servlet Filter (runs before Spring MVC).
+ * This provides earlier tenant validation and better security compared to interceptors.
  *
  * @author Ivan-Beaudry Irakoze
- * @since Oct 5, 2024
- * @Project AuthHub
+ * @since Dec 4, 2024
  */
 @Configuration
-@RequiredArgsConstructor
-public class WebConfig implements WebMvcConfigurer {
+public class WebConfig {
 
-    private final TenantRequestInterceptor tenantRequestInterceptor;
-
-    @Override
-    public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(tenantRequestInterceptor)
-                .addPathPatterns("/**")
-                .excludePathPatterns(
-                        "/actuator/**",
-                        "/error",
-                        "/favicon.ico",
-                        // OpenAPI/Scalar documentation paths
-                        "/v3/api-docs/**",
-                        "/swagger-ui/**",
-                        "/swagger-ui.html",
-                        "/scalar",
-                        "/scalar/**"
-                );
+    /**
+     * Register TenantResolutionFilter as a Servlet Filter.
+     * Filters run before Spring MVC, providing earlier tenant validation.
+     *
+     * @param tenantResolutionFilter The tenant resolution filter
+     * @return FilterRegistrationBean configured with the filter
+     */
+    @Bean
+    public FilterRegistrationBean<TenantResolutionFilter> tenantResolutionFilterRegistration(
+            TenantResolutionFilter tenantResolutionFilter) {
+        FilterRegistrationBean<TenantResolutionFilter> registration = new FilterRegistrationBean<>();
+        registration.setFilter(tenantResolutionFilter);
+        registration.addUrlPatterns("/*");
+        registration.setOrder(1); // High priority - run early
+        registration.setName("tenantResolutionFilter");
+        return registration;
     }
 }

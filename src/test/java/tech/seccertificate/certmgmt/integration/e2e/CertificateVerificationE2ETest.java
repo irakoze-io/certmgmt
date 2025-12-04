@@ -1,15 +1,14 @@
 package tech.seccertificate.certmgmt.integration.e2e;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
-import tech.seccertificate.certmgmt.dto.certificate.CertificateDTO;
+import tech.seccertificate.certmgmt.dto.certificate.CertificateResponse;
 import tech.seccertificate.certmgmt.dto.certificate.GenerateCertificateRequest;
-import tech.seccertificate.certmgmt.dto.template.TemplateDTO;
-import tech.seccertificate.certmgmt.dto.template.TemplateVersionDTO;
+import tech.seccertificate.certmgmt.dto.template.TemplateResponse;
+import tech.seccertificate.certmgmt.dto.template.TemplateVersionResponse;
 import tech.seccertificate.certmgmt.entity.Customer;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
 import tech.seccertificate.certmgmt.integration.BaseIntegrationTest;
@@ -37,7 +36,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class CertificateVerificationE2ETest extends BaseIntegrationTest {
 
     private Customer testCustomer;
-    private Long templateId;
     private UUID templateVersionId;
 
     @BeforeEach
@@ -55,7 +53,7 @@ class CertificateVerificationE2ETest extends BaseIntegrationTest {
 
         // Create template
         var templateCode = "VERIFY_TEMPLATE_" + System.currentTimeMillis();
-        var templateDTO = TemplateDTO.builder()
+        var templateDTO = TemplateResponse.builder()
                 .customerId(testCustomer.getId())
                 .name("Verification Template")
                 .code(templateCode)
@@ -71,11 +69,11 @@ class CertificateVerificationE2ETest extends BaseIntegrationTest {
 
         var createdTemplate = objectMapper.readValue(
                 templateResult.getResponse().getContentAsString(), 
-                TemplateDTO.class);
-        templateId = createdTemplate.getId();
+                TemplateResponse.class);
+        var templateId = createdTemplate.getId();
 
         // Create template version
-        var versionDTO = TemplateVersionDTO.builder()
+        var versionDTO = TemplateVersionResponse.builder()
                 .version(1)
                 .htmlContent("<html><body>Certificate</body></html>")
                 .fieldSchema(Map.of("name", "string"))
@@ -93,7 +91,7 @@ class CertificateVerificationE2ETest extends BaseIntegrationTest {
 
         var createdVersion = objectMapper.readValue(
                 versionResult.getResponse().getContentAsString(),
-                TemplateVersionDTO.class);
+                TemplateVersionResponse.class);
         templateVersionId = createdVersion.getId();
     }
 
@@ -126,7 +124,7 @@ class CertificateVerificationE2ETest extends BaseIntegrationTest {
 
         var createdCertificate = objectMapper.readValue(
                 certificateResult.getResponse().getContentAsString(),
-                CertificateDTO.class);
+                CertificateResponse.class);
         
         assertThat(createdCertificate.getId()).isNotNull();
         assertThat(createdCertificate.getCertificateNumber()).isEqualTo("VERIFY-001");
@@ -141,7 +139,7 @@ class CertificateVerificationE2ETest extends BaseIntegrationTest {
 
         var certificate = objectMapper.readValue(
                 certificateDetails.getResponse().getContentAsString(),
-                CertificateDTO.class);
+                CertificateResponse.class);
 
         // Step 3: Verify Certificate (public endpoint - no tenant header needed)
         // Note: Adjust endpoint based on actual implementation
@@ -181,7 +179,7 @@ class CertificateVerificationE2ETest extends BaseIntegrationTest {
 
         var createdCertificate = objectMapper.readValue(
                 certificateResult.getResponse().getContentAsString(),
-                CertificateDTO.class);
+                CertificateResponse.class);
 
         // Get signed download URL
         mockMvc.perform(

@@ -28,7 +28,7 @@ import java.util.UUID;
  * Handles certificate generation (sync + async), CRUD operations, status management,
  * and certificate verification.
  * 
- * <p>All operations require tenant context to be set (via TenantRequestInterceptor
+ * <p>All operations require tenant context to be set (via TenantResolutionFilter
  * or programmatically using TenantService).
  */
 @Slf4j

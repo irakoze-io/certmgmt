@@ -1,13 +1,12 @@
 package tech.seccertificate.certmgmt.integration.e2e;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
-import tech.seccertificate.certmgmt.dto.template.TemplateDTO;
-import tech.seccertificate.certmgmt.dto.template.TemplateVersionDTO;
+import tech.seccertificate.certmgmt.dto.template.TemplateResponse;
+import tech.seccertificate.certmgmt.dto.template.TemplateVersionResponse;
 import tech.seccertificate.certmgmt.entity.Customer;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
 import tech.seccertificate.certmgmt.integration.BaseIntegrationTest;
@@ -52,7 +51,7 @@ class TemplateVersioningE2ETest extends BaseIntegrationTest {
 
         // Create template
         var templateCode = "VERSION_TEMPLATE_" + System.currentTimeMillis();
-        var templateDTO = TemplateDTO.builder()
+        var templateDTO = TemplateResponse.builder()
                 .customerId(testCustomer.getId())
                 .name("Versioning Template")
                 .code(templateCode)
@@ -68,7 +67,7 @@ class TemplateVersioningE2ETest extends BaseIntegrationTest {
 
         var createdTemplate = objectMapper.readValue(
                 templateResult.getResponse().getContentAsString(), 
-                TemplateDTO.class);
+                TemplateResponse.class);
         templateId = createdTemplate.getId();
     }
 
@@ -81,7 +80,7 @@ class TemplateVersioningE2ETest extends BaseIntegrationTest {
     @DisplayName("E2E: Template versioning workflow - Create multiple versions")
     void templateVersioningWorkflow() throws Exception {
         // Step 1: Create Version 1 (DRAFT)
-        var version1DTO = TemplateVersionDTO.builder()
+        var version1DTO = TemplateVersionResponse.builder()
                 .version(1)
                 .htmlContent("<html><body>Version 1 Content</body></html>")
                 .fieldSchema(Map.of("name", "string"))
@@ -102,11 +101,11 @@ class TemplateVersioningE2ETest extends BaseIntegrationTest {
 
         var version1 = objectMapper.readValue(
                 version1Result.getResponse().getContentAsString(),
-                TemplateVersionDTO.class);
+                TemplateVersionResponse.class);
         assertThat(version1.getId()).isNotNull();
 
         // Step 2: Create Version 2 (ACTIVE)
-        var version2DTO = TemplateVersionDTO.builder()
+        var version2DTO = TemplateVersionResponse.builder()
                 .version(2)
                 .htmlContent("<html><body>Version 2 Content - Updated</body></html>")
                 .fieldSchema(Map.of("name", "string", "email", "string"))
@@ -127,7 +126,7 @@ class TemplateVersioningE2ETest extends BaseIntegrationTest {
 
         var version2 = objectMapper.readValue(
                 version2Result.getResponse().getContentAsString(),
-                TemplateVersionDTO.class);
+                TemplateVersionResponse.class);
         assertThat(version2.getId()).isNotNull();
         assertThat(version2.getVersion()).isGreaterThan(version1.getVersion());
 
@@ -156,7 +155,7 @@ class TemplateVersioningE2ETest extends BaseIntegrationTest {
     @DisplayName("E2E: Version activation workflow")
     void versionActivationWorkflow() throws Exception {
         // Create version 1 (DRAFT)
-        var version1DTO = TemplateVersionDTO.builder()
+        var version1DTO = TemplateVersionResponse.builder()
                 .version(1)
                 .htmlContent("<html><body>Draft Version</body></html>")
                 .fieldSchema(Map.of("name", "string"))
@@ -174,10 +173,10 @@ class TemplateVersioningE2ETest extends BaseIntegrationTest {
 
         var version1 = objectMapper.readValue(
                 version1Result.getResponse().getContentAsString(),
-                TemplateVersionDTO.class);
+                TemplateVersionResponse.class);
 
         // Activate version (update status to ACTIVE)
-        var activatedVersionDTO = TemplateVersionDTO.builder()
+        var activatedVersionDTO = TemplateVersionResponse.builder()
                 .id(version1.getId())
                 .version(version1.getVersion())
                 .htmlContent(version1.getHtmlContent())
