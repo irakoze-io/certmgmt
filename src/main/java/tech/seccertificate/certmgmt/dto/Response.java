@@ -20,7 +20,8 @@ import java.util.List;
  * {
  *   "success": true,
  *   "message": "Operation completed successfully",
- *   "data": { ... }
+ *   "data": { ... },
+ *   "details": null
  * }
  * }</pre>
  * 
@@ -33,7 +34,8 @@ import java.util.List;
  *     "errorCode": "APP_SPECIFIC_CODE",
  *     "details": null,
  *     "data": null
- *   }
+ *   },
+ *   "details": null
  * }
  * }</pre>
  * 
@@ -47,7 +49,8 @@ import java.util.List;
  *     "errorCode": "APP_SPECIFIC_CODE",
  *     "details": ["email is required", "phone number is invalid"],
  *     "data": { ... }
- *   }
+ *   },
+ *   "details": ["Additional context information"]
  * }
  * }</pre>
  * 
@@ -108,6 +111,24 @@ public class Response<T> {
     private ErrorResponse error;
     
     /**
+     * Additional details or context information (optional).
+     * <p>
+     * Can be used for:
+     * <ul>
+     *   <li>Success responses: Additional metadata, warnings, or informational messages</li>
+     *   <li>Error responses: Additional context or supplementary information</li>
+     * </ul>
+     * <p>
+     * This can be a List of strings, a Map, or any other object structure.
+     * Examples:
+     * <ul>
+     *   <li>["Warning: Resource will expire in 7 days", "Consider upgrading plan"]</li>
+     *   <li>{"totalRecords": 150, "filteredRecords": 25}</li>
+     * </ul>
+     */
+    private Object details;
+    
+    /**
      * Creates a successful response with data.
      * 
      * @param <T> The type of data
@@ -135,6 +156,24 @@ public class Response<T> {
     }
     
     /**
+     * Creates a successful response with data and details.
+     * 
+     * @param <T> The type of data
+     * @param message Success message
+     * @param data Response data
+     * @param details Additional details or context
+     * @return Response instance
+     */
+    public static <T> Response<T> success(String message, T data, Object details) {
+        return Response.<T>builder()
+                .success(true)
+                .message(message)
+                .data(data)
+                .details(details)
+                .build();
+    }
+    
+    /**
      * Creates an error response.
      * 
      * @param <T> The type parameter (unused for errors)
@@ -153,49 +192,96 @@ public class Response<T> {
     }
     
     /**
+     * Creates an error response with details.
+     * 
+     * @param <T> The type parameter (unused for errors)
+     * @param message Error message
+     * @param errorCode Application-specific error code
+     * @param details Additional details or context
+     * @return Response instance
+     */
+    public static <T> Response<T> error(String message, String errorCode, Object details) {
+        return Response.<T>builder()
+                .success(false)
+                .message(message)
+                .error(ErrorResponse.builder()
+                        .errorCode(errorCode)
+                        .build())
+                .details(details)
+                .build();
+    }
+    
+    /**
      * Creates an advanced error response with type and details.
      * 
      * @param <T> The type parameter (unused for errors)
      * @param message Error message
      * @param errorCode Application-specific error code
      * @param type Error type (e.g., "Validation Error", "Business Logic Error")
-     * @param details List of detailed error messages
+     * @param errorDetails List of detailed error messages (for error object)
      * @return Response instance
      */
-    public static <T> Response<T> error(String message, String errorCode, String type, List<String> details) {
+    public static <T> Response<T> error(String message, String errorCode, String type, List<String> errorDetails) {
         return Response.<T>builder()
                 .success(false)
                 .message(message)
                 .error(ErrorResponse.builder()
                         .errorCode(errorCode)
                         .errorType(type)
-                        .errorDetails(details)
+                        .errorDetails(errorDetails)
                         .build())
                 .build();
     }
     
     /**
-     * Creates an advanced error response with type, details, and error data.
+     * Creates an advanced error response with type, error details, and top-level details.
      * 
      * @param <T> The type parameter (unused for errors)
      * @param message Error message
      * @param errorCode Application-specific error code
      * @param type Error type
-     * @param details List of detailed error messages
-     * @param errorData Additional error data (e.g., field-level errors)
+     * @param errorDetails List of detailed error messages (for error object)
+     * @param details Top-level additional details or context
      * @return Response instance
      */
     public static <T> Response<T> error(String message, String errorCode, String type, 
-                                         List<String> details, Object errorData) {
+                                           List<String> errorDetails, Object details) {
         return Response.<T>builder()
                 .success(false)
                 .message(message)
                 .error(ErrorResponse.builder()
                         .errorCode(errorCode)
                         .errorType(type)
-                        .errorDetails(details)
+                        .errorDetails(errorDetails)
+                        .build())
+                .details(details)
+                .build();
+    }
+    
+    /**
+     * Creates an advanced error response with type, error details, error data, and top-level details.
+     * 
+     * @param <T> The type parameter (unused for errors)
+     * @param message Error message
+     * @param errorCode Application-specific error code
+     * @param type Error type
+     * @param errorDetails List of detailed error messages (for error object)
+     * @param errorData Additional error data in error object (e.g., field-level errors)
+     * @param details Top-level additional details or context
+     * @return Response instance
+     */
+    public static <T> Response<T> error(String message, String errorCode, String type, 
+                                           List<String> errorDetails, Object errorData, Object details) {
+        return Response.<T>builder()
+                .success(false)
+                .message(message)
+                .error(ErrorResponse.builder()
+                        .errorCode(errorCode)
+                        .errorType(type)
+                        .errorDetails(errorDetails)
                         .errorData(errorData)
                         .build())
+                .details(details)
                 .build();
     }
 }
