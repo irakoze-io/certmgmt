@@ -29,8 +29,7 @@ public class TenantConnectionProvider extends AbstractDataSourceBasedMultiTenant
 
     @PostConstruct
     public void init() {
-        log.info("=== TenantConnectionProvider initialized ===");
-        log.info("DataSource: {}", dataSource.getClass().getName());
+        log.debug("TenantConnectionProvider initialized with DataSource: {}", dataSource.getClass().getName());
     }
 
     @Override
@@ -48,20 +47,20 @@ public class TenantConnectionProvider extends AbstractDataSourceBasedMultiTenant
     @Override
     public Connection getConnection(Object tenantIdentifier) throws SQLException {
         String tenantId = tenantIdentifier != null ? tenantIdentifier.toString() : "public";
-        log.info("TenantConnectionProvider.getConnection() called with tenantIdentifier: {}", tenantId);
+        log.debug("TenantConnectionProvider.getConnection() called with tenantIdentifier: {}", tenantId);
         Connection connection = super.getConnection(tenantIdentifier);
 
         // Set the search_path for PostgreSQL to use the tenant schema
         // This ensures all queries use the correct schema
         setSchema(connection, tenantId);
-        log.info("✓ Schema search_path set to: {} for connection", tenantId);
+        log.debug("Schema search_path set to: {} for connection", tenantId);
 
         return connection;
     }
 
     @Override
     public void releaseConnection(Object tenantIdentifier, Connection connection) throws SQLException {
-        log.info("TenantConnectionProvider.releaseConnection() called for tenantIdentifier: {}", tenantIdentifier);
+        log.debug("TenantConnectionProvider.releaseConnection() called for tenantIdentifier: {}", tenantIdentifier);
         // Reset search_path to default before releasing connection
         // This prevents schema leakage between tenants
         try {

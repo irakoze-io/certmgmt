@@ -23,22 +23,22 @@ public class TenantIdentifierResolver implements CurrentTenantIdentifierResolver
 
     @PostConstruct
     public void init() {
-        log.info("TenantIdentifierResolver initialized");
+        log.debug("TenantIdentifierResolver initialized");
     }
 
     @Override
     public String resolveCurrentTenantIdentifier() {
         String tenantSchema = TenantContext.getTenantSchema();
-        log.info("TenantIdentifierResolver.resolveCurrentTenantIdentifier() called. Current tenantSchema: {}", tenantSchema);
+        log.debug("TenantIdentifierResolver.resolveCurrentTenantIdentifier() called. Current tenantSchema: {}", tenantSchema);
 
         // If no tenant is set, use default (public) schema
         // This allows operations on public schema tables (Customer, GlobalAuditLog)
         if (tenantSchema == null || tenantSchema.isEmpty()) {
-            log.warn("⚠ No tenant schema set in TenantContext, returning default: {}", DEFAULT_TENANT_IDENTIFIER);
+            log.debug("No tenant schema set in TenantContext, returning default: {}", DEFAULT_TENANT_IDENTIFIER);
             return DEFAULT_TENANT_IDENTIFIER;
         }
 
-        log.info("✓ Returning tenant schema: {}", tenantSchema);
+        log.debug("Returning tenant schema: {}", tenantSchema);
         return tenantSchema;
     }
 

@@ -61,9 +61,9 @@ public class MultiTenantConfig {
         this.multiTenantConnectionProvider = multiTenantConnectionProvider;
         this.currentTenantIdentifierResolver = currentTenantIdentifierResolver;
         
-        log.info("=== Configuring EntityManagerFactory with multi-tenancy ===");
-        log.info("MultiTenantConnectionProvider: {}", multiTenantConnectionProvider.getClass().getName());
-        log.info("CurrentTenantIdentifierResolver: {}", currentTenantIdentifierResolver.getClass().getName());
+        log.info("Configuring EntityManagerFactory with multi-tenancy");
+        log.debug("MultiTenantConnectionProvider: {}", multiTenantConnectionProvider.getClass().getName());
+        log.debug("CurrentTenantIdentifierResolver: {}", currentTenantIdentifierResolver.getClass().getName());
         
         LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
         em.setDataSource(dataSource);
@@ -94,9 +94,9 @@ public class MultiTenantConfig {
         
         em.setJpaPropertyMap(properties);
         
-        log.info("✓✓✓ EntityManagerFactory configured with multi-tenancy: SCHEMA strategy ✓✓✓");
-        log.info("  Connection Provider: {}", multiTenantConnectionProvider.getClass().getName());
-        log.info("  Tenant Resolver: {}", currentTenantIdentifierResolver.getClass().getName());
+        log.info("EntityManagerFactory configured with multi-tenancy: SCHEMA strategy");
+        log.debug("Connection Provider: {}", multiTenantConnectionProvider.getClass().getName());
+        log.debug("Tenant Resolver: {}", currentTenantIdentifierResolver.getClass().getName());
         
         return em;
     }
@@ -111,9 +111,9 @@ public class MultiTenantConfig {
     
     @PostConstruct
     public void verifyConfiguration() {
-        log.info("=== MultiTenantConfig PostConstruct - Verifying beans ===");
-        log.info("MultiTenantConnectionProvider bean: {}", multiTenantConnectionProvider != null ? "✓ Created" : "✗ Missing");
-        log.info("CurrentTenantIdentifierResolver bean: {}", currentTenantIdentifierResolver != null ? "✓ Created" : "✗ Missing");
+        log.debug("MultiTenantConfig PostConstruct - Verifying beans");
+        log.debug("MultiTenantConnectionProvider bean: {}", multiTenantConnectionProvider != null ? "Created" : "Missing");
+        log.debug("CurrentTenantIdentifierResolver bean: {}", currentTenantIdentifierResolver != null ? "Created" : "Missing");
     }
 
     /**
