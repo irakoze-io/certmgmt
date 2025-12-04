@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <ol>
  *   <li>Create template</li>
  *   <li>Create version 1 (DRAFT)</li>
- *   <li>Create version 2 (ACTIVE)</li>
+ *   <li>Create version 2 (PUBLISHED)</li>
  *   <li>Verify version history</li>
  *   <li>Test certificate generation with specific version</li>
  * </ol>
@@ -104,7 +104,7 @@ class TemplateVersioningE2ETest extends BaseIntegrationTest {
                 TemplateVersionResponse.class);
         assertThat(version1.getId()).isNotNull();
 
-        // Step 2: Create Version 2 (ACTIVE)
+        // Step 2: Create Version 2 (PUBLISHED)
         var version2DTO = TemplateVersionResponse.builder()
                 .version(2)
                 .htmlContent("<html><body>Version 2 Content - Updated</body></html>")
@@ -121,7 +121,7 @@ class TemplateVersioningE2ETest extends BaseIntegrationTest {
                 .andDo(print())
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.version").value(2))
-                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.status").value("PUBLISHED"))
                 .andReturn();
 
         var version2 = objectMapper.readValue(

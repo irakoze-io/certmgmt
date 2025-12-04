@@ -11,18 +11,15 @@ public class ApplicationObjectNotFoundException extends RuntimeException {
     }
 
     protected ApplicationObjectNotFoundException(Object object) {
-        var message = matchClass(object);
-        super(message);
+        super(matchClass(object));
     }
 
     protected ApplicationObjectNotFoundException(Object object, Throwable cause) {
-        var message = matchClass(object);
-        super(message, cause);
+        super(matchClass(object), cause);
     }
 
     protected ApplicationObjectNotFoundException(Object object, String message) {
-        var innerMessage = matchClass(object);
-        super(message + ": " + innerMessage);
+        super(message + ": " + matchClass(object));
     }
 
     private static <T> String matchClass(T object) {
