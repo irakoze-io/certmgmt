@@ -11,7 +11,7 @@ description = 'A project for designing and implementing a secure system to defin
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
