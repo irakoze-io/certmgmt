@@ -52,6 +52,10 @@ dependencies {
 
     // Database
     implementation 'org.springframework.boot:spring-boot-starter-liquibase'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:rabbitmq'
+    testImplementation 'org.testcontainers:postgresql'
     runtimeOnly 'org.postgresql:postgresql'
 
     // OpenAPI Documentation (SpringDoc with Scalar UI)

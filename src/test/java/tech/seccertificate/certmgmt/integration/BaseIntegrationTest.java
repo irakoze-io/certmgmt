@@ -21,13 +21,10 @@ import tech.seccertificate.certmgmt.repository.CustomerRepository;
 import tech.seccertificate.certmgmt.service.CustomerService;
 import tech.seccertificate.certmgmt.service.TenantService;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
-
 /**
  * Base class for integration tests.
  * Provides common setup and utilities for testing REST controllers.
- * 
+ *
  * <p>Uses Testcontainers to provide an isolated PostgreSQL database instance.
  * This ensures:
  * <ul>
@@ -106,7 +103,7 @@ public abstract class BaseIntegrationTest {
                 .maxCertificatesPerMonth(1000)
                 .status(Customer.CustomerStatus.ACTIVE)
                 .build();
-        
+
         return customerService.onboardCustomer(customer);
     }
 

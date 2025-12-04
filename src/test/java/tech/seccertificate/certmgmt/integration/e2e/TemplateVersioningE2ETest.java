@@ -1,14 +1,6 @@
 package tech.seccertificate.certmgmt.integration.e2e;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.springframework.http.MediaType;
-import tech.seccertificate.certmgmt.dto.template.TemplateResponse;
-import tech.seccertificate.certmgmt.dto.template.TemplateVersionResponse;
-import tech.seccertificate.certmgmt.entity.Customer;
-import tech.seccertificate.certmgmt.entity.TemplateVersion;
 import tech.seccertificate.certmgmt.integration.BaseIntegrationTest;
 
 import java.util.Map;

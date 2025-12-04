@@ -4,6 +4,12 @@ databaseChangeLog:
       author: ivanirakoze
       validCheckSums:
         - 9:cc68f660a1cd4e7469adb5d81b10a40c
+        - 9:81b17ecc050010a31d10a8ba1db6e193
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT 1
       changes:
         - comment: |
             Reference migration for Template table structure.
