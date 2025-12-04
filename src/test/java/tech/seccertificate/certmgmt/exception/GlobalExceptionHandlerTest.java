@@ -14,9 +14,10 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import tech.seccertificate.certmgmt.dto.Response;
 
-import java.net.URI;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -46,16 +47,18 @@ class GlobalExceptionHandlerTest {
         var exception = new TenantNotFoundException("Tenant not found: test_tenant");
 
         // Act
-        ResponseEntity<ErrorResponse> response = exceptionHandler.handleTenantNotFoundException(exception);
+        ResponseEntity<Response<Void>> response = exceptionHandler.handleTenantNotFoundException(exception);
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getTitle()).isEqualTo("Tenant Not Found");
-        assertThat(response.getBody().getStatus()).isEqualTo(404);
-        assertThat(response.getBody().getDetail()).isEqualTo("Tenant not found: test_tenant");
-        assertThat(response.getBody().getType()).hasToString("https://api.certmgmt.example.com/problems/tenant-not-found");
-        assertThat(response.getBody().getInstance()).hasToString("/api/test");
+        assertThat(response.getBody().getSuccess()).isFalse();
+        assertThat(response.getBody().getMessage()).isEqualTo("Tenant not found: test_tenant");
+        assertThat(response.getBody().getData()).isNull();
+        assertThat(response.getBody().getError()).isNotNull();
+        assertThat(response.getBody().getError().getErrorCode()).isEqualTo("TENANT_NOT_FOUND");
+        assertThat(response.getBody().getError().getErrorType()).isEqualTo("Resource Not Found");
+        assertThat(response.getBody().getError().getErrorDetails()).contains("Tenant not found: test_tenant");
     }
 
     // ==================== handleTenantException Tests ====================
@@ -67,15 +70,18 @@ class GlobalExceptionHandlerTest {
         var exception = new TenantException("Customer is not active");
 
         // Act
-        ResponseEntity<ErrorResponse> response = exceptionHandler.handleTenantException(exception);
+        ResponseEntity<Response<Void>> response = exceptionHandler.handleTenantException(exception);
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getTitle()).isEqualTo("Tenant Error");
-        assertThat(response.getBody().getStatus()).isEqualTo(400);
-        assertThat(response.getBody().getDetail()).isEqualTo("Customer is not active");
-        assertThat(response.getBody().getType()).hasToString("https://api.certmgmt.example.com/problems/tenant-error");
+        assertThat(response.getBody().getSuccess()).isFalse();
+        assertThat(response.getBody().getMessage()).isEqualTo("Customer is not active");
+        assertThat(response.getBody().getData()).isNull();
+        assertThat(response.getBody().getError()).isNotNull();
+        assertThat(response.getBody().getError().getErrorCode()).isEqualTo("TENANT_ERROR");
+        assertThat(response.getBody().getError().getErrorType()).isEqualTo("Business Logic Error");
+        assertThat(response.getBody().getError().getErrorDetails()).contains("Customer is not active");
     }
 
     // ==================== handleCustomerNotFoundException Tests ====================
@@ -87,15 +93,18 @@ class GlobalExceptionHandlerTest {
         var exception = new CustomerNotFoundException("Customer not found: 123");
 
         // Act
-        ResponseEntity<ErrorResponse> response = exceptionHandler.handleCustomerNotFoundException(exception);
+        ResponseEntity<Response<Void>> response = exceptionHandler.handleCustomerNotFoundException(exception);
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getTitle()).isEqualTo("Customer Not Found");
-        assertThat(response.getBody().getStatus()).isEqualTo(404);
-        assertThat(response.getBody().getDetail()).isEqualTo("Customer not found: 123");
-        assertThat(response.getBody().getType()).hasToString("https://api.certmgmt.example.com/problems/customer-not-found");
+        assertThat(response.getBody().getSuccess()).isFalse();
+        assertThat(response.getBody().getMessage()).isEqualTo("Customer not found: 123");
+        assertThat(response.getBody().getData()).isNull();
+        assertThat(response.getBody().getError()).isNotNull();
+        assertThat(response.getBody().getError().getErrorCode()).isEqualTo("CUSTOMER_NOT_FOUND");
+        assertThat(response.getBody().getError().getErrorType()).isEqualTo("Resource Not Found");
+        assertThat(response.getBody().getError().getErrorDetails()).contains("Customer not found: 123");
     }
 
     // ==================== handleTenantSchemaCreationException Tests ====================
@@ -107,15 +116,18 @@ class GlobalExceptionHandlerTest {
         var exception = new TenantSchemaCreationException("Failed to create schema: test_schema");
 
         // Act
-        ResponseEntity<ErrorResponse> response = exceptionHandler.handleTenantSchemaCreationException(exception);
+        ResponseEntity<Response<Void>> response = exceptionHandler.handleTenantSchemaCreationException(exception);
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getTitle()).isEqualTo("Schema Creation Failed");
-        assertThat(response.getBody().getStatus()).isEqualTo(500);
-        assertThat(response.getBody().getDetail()).isEqualTo("Failed to create schema: test_schema");
-        assertThat(response.getBody().getType()).hasToString("https://api.certmgmt.example.com/problems/schema-creation-failed");
+        assertThat(response.getBody().getSuccess()).isFalse();
+        assertThat(response.getBody().getMessage()).isEqualTo("Failed to create schema: test_schema");
+        assertThat(response.getBody().getData()).isNull();
+        assertThat(response.getBody().getError()).isNotNull();
+        assertThat(response.getBody().getError().getErrorCode()).isEqualTo("SCHEMA_CREATION_FAILED");
+        assertThat(response.getBody().getError().getErrorType()).isEqualTo("System Error");
+        assertThat(response.getBody().getError().getErrorDetails()).contains("Failed to create schema: test_schema");
     }
 
     // ==================== handleValidationExceptions Tests ====================
@@ -128,22 +140,37 @@ class GlobalExceptionHandlerTest {
         FieldError fieldError1 = new FieldError("customer", "name", "Name is required");
         FieldError fieldError2 = new FieldError("customer", "domain", "Domain is invalid");
         when(bindingResult.getAllErrors()).thenReturn(List.of(fieldError1, fieldError2));
-
-        var exception = new MethodArgumentNotValidException(null, bindingResult);
+        
+        // Create MethodArgumentNotValidException using mock
+        MethodArgumentNotValidException exception = mock(MethodArgumentNotValidException.class);
+        when(exception.getBindingResult()).thenReturn(bindingResult);
 
         // Act
-        ResponseEntity<ErrorResponse> response = exceptionHandler.handleValidationExceptions(exception);
+        ResponseEntity<Response<Void>> response = exceptionHandler.handleValidationExceptions(exception);
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getTitle()).isEqualTo("Validation Failed");
-        assertThat(response.getBody().getStatus()).isEqualTo(400);
-        assertThat(response.getBody().getDetail()).contains("Request validation failed");
-        assertThat(response.getBody().getErrors()).isNotNull();
-        assertThat(response.getBody().getErrors()).containsEntry("name", "Name is required");
-        assertThat(response.getBody().getErrors()).containsEntry("domain", "Domain is invalid");
-        assertThat(response.getBody().getType()).hasToString("https://api.certmgmt.example.com/problems/validation-failed");
+        assertThat(response.getBody().getSuccess()).isFalse();
+        assertThat(response.getBody().getMessage()).contains("Request validation failed");
+        assertThat(response.getBody().getData()).isNull();
+        assertThat(response.getBody().getError()).isNotNull();
+        assertThat(response.getBody().getError().getErrorCode()).isEqualTo("VALIDATION_FAILED");
+        assertThat(response.getBody().getError().getErrorType()).isEqualTo("Validation Error");
+        assertThat(response.getBody().getError().getErrorDetails()).isNotNull();
+        assertThat(response.getBody().getError().getErrorDetails()).contains("name: Name is required");
+        assertThat(response.getBody().getError().getErrorDetails()).contains("domain: Domain is invalid");
+        
+        // Check errorData contains fieldErrors
+        assertThat(response.getBody().getError().getErrorData()).isNotNull();
+        assertThat(response.getBody().getError().getErrorData()).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> errorData = (Map<String, Object>) response.getBody().getError().getErrorData();
+        assertThat(errorData).containsKey("fieldErrors");
+        @SuppressWarnings("unchecked")
+        Map<String, String> fieldErrors = (Map<String, String>) errorData.get("fieldErrors");
+        assertThat(fieldErrors).containsEntry("name", "Name is required");
+        assertThat(fieldErrors).containsEntry("domain", "Domain is invalid");
     }
 
     // ==================== handleIllegalArgumentException Tests ====================
@@ -155,15 +182,18 @@ class GlobalExceptionHandlerTest {
         var exception = new IllegalArgumentException("Invalid customer ID");
 
         // Act
-        ResponseEntity<ErrorResponse> response = exceptionHandler.handleIllegalArgumentException(exception);
+        ResponseEntity<Response<Void>> response = exceptionHandler.handleIllegalArgumentException(exception);
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getTitle()).isEqualTo("Invalid Request");
-        assertThat(response.getBody().getStatus()).isEqualTo(400);
-        assertThat(response.getBody().getDetail()).isEqualTo("Invalid customer ID");
-        assertThat(response.getBody().getType()).hasToString("https://api.certmgmt.example.com/problems/invalid-request");
+        assertThat(response.getBody().getSuccess()).isFalse();
+        assertThat(response.getBody().getMessage()).isEqualTo("Invalid customer ID");
+        assertThat(response.getBody().getData()).isNull();
+        assertThat(response.getBody().getError()).isNotNull();
+        assertThat(response.getBody().getError().getErrorCode()).isEqualTo("INVALID_REQUEST");
+        assertThat(response.getBody().getError().getErrorType()).isEqualTo("Validation Error");
+        assertThat(response.getBody().getError().getErrorDetails()).contains("Invalid customer ID");
     }
 
     // ==================== handleIllegalStateException Tests ====================
@@ -175,15 +205,18 @@ class GlobalExceptionHandlerTest {
         var exception = new IllegalStateException("Tenant context not set");
 
         // Act
-        ResponseEntity<ErrorResponse> response = exceptionHandler.handleIllegalStateException(exception);
+        ResponseEntity<Response<Void>> response = exceptionHandler.handleIllegalStateException(exception);
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getTitle()).isEqualTo("Invalid State");
-        assertThat(response.getBody().getStatus()).isEqualTo(400);
-        assertThat(response.getBody().getDetail()).isEqualTo("Tenant context not set");
-        assertThat(response.getBody().getType()).hasToString("https://api.certmgmt.example.com/problems/invalid-state");
+        assertThat(response.getBody().getSuccess()).isFalse();
+        assertThat(response.getBody().getMessage()).isEqualTo("Tenant context not set");
+        assertThat(response.getBody().getData()).isNull();
+        assertThat(response.getBody().getError()).isNotNull();
+        assertThat(response.getBody().getError().getErrorCode()).isEqualTo("INVALID_STATE");
+        assertThat(response.getBody().getError().getErrorType()).isEqualTo("Business Logic Error");
+        assertThat(response.getBody().getError().getErrorDetails()).contains("Tenant context not set");
     }
 
     // ==================== handleGenericException Tests ====================
@@ -195,62 +228,41 @@ class GlobalExceptionHandlerTest {
         var exception = new RuntimeException("Unexpected error occurred");
 
         // Act
-        ResponseEntity<ErrorResponse> response = exceptionHandler.handleGenericException(exception);
+        ResponseEntity<Response<Void>> response = exceptionHandler.handleGenericException(exception);
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getTitle()).isEqualTo("Internal Server Error");
-        assertThat(response.getBody().getStatus()).isEqualTo(500);
-        assertThat(response.getBody().getDetail()).isEqualTo("An unexpected error occurred. Please contact support.");
-        assertThat(response.getBody().getType()).hasToString("https://api.certmgmt.example.com/problems/internal-server-error");
+        assertThat(response.getBody().getSuccess()).isFalse();
+        assertThat(response.getBody().getMessage()).isEqualTo("An unexpected error occurred. Please contact support.");
+        assertThat(response.getBody().getData()).isNull();
+        assertThat(response.getBody().getError()).isNotNull();
+        assertThat(response.getBody().getError().getErrorCode()).isEqualTo("INTERNAL_SERVER_ERROR");
+        assertThat(response.getBody().getError().getErrorType()).isEqualTo("System Error");
+        assertThat(response.getBody().getError().getErrorDetails()).isNotNull();
+        assertThat(response.getBody().getError().getErrorDetails()).contains("An internal server error occurred. Please try again later or contact support if the problem persists.");
     }
 
-    // ==================== Request Path Tests ====================
+    // ==================== ApplicationObjectNotFoundException Tests ====================
 
     @Test
-    @DisplayName("Should use default path when request context is not available")
-    void handleException_NoRequestContext_UsesDefaultPath() {
+    @DisplayName("Should handle ApplicationObjectNotFoundException with NOT_FOUND status")
+    void handleApplicationObjectNotFoundException_ReturnsNotFound() {
         // Arrange
-        RequestContextHolder.resetRequestAttributes();
-        var exception = new TenantNotFoundException("Test exception");
+        var exception = new ApplicationObjectNotFoundException("Resource not found: template_123");
 
         // Act
-        ResponseEntity<ErrorResponse> response = exceptionHandler.handleTenantNotFoundException(exception);
+        ResponseEntity<Response<Void>> response = exceptionHandler.handleApplicationObjectNotFoundException(exception);
 
         // Assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getInstance()).hasToString("/");
-    }
-
-    @Test
-    @DisplayName("Should extract request URI from context")
-    void handleException_WithRequestContext_ExtractsURI() {
-        // Arrange
-        mockRequest.setRequestURI("/api/customers/123");
-        var exception = new IllegalArgumentException("Test exception");
-
-        // Act
-        ResponseEntity<ErrorResponse> response = exceptionHandler.handleIllegalArgumentException(exception);
-
-        // Assert
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getInstance()).hasToString("/api/customers/123");
-    }
-
-    @Test
-    @DisplayName("Should include query parameters in instance URI")
-    void handleException_WithQueryParams_IncludesInURI() {
-        // Arrange
-        mockRequest.setRequestURI("/api/templates");
-        mockRequest.setQueryString("code=test_template");
-        var exception = new IllegalArgumentException("Test");
-
-        // Act
-        ResponseEntity<ErrorResponse> response = exceptionHandler.handleIllegalArgumentException(exception);
-
-        // Assert
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().getInstance()).hasToString("/api/templates");
+        assertThat(response.getBody().getSuccess()).isFalse();
+        assertThat(response.getBody().getMessage()).isEqualTo("Resource not found: template_123");
+        assertThat(response.getBody().getData()).isNull();
+        assertThat(response.getBody().getError()).isNotNull();
+        assertThat(response.getBody().getError().getErrorCode()).isEqualTo("RESOURCE_NOT_FOUND");
+        assertThat(response.getBody().getError().getErrorType()).isEqualTo("Resource Not Found");
+        assertThat(response.getBody().getError().getErrorDetails()).contains("Resource not found: template_123");
     }
 }

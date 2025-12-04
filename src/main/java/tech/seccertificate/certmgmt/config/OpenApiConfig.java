@@ -1,6 +1,8 @@
 package tech.seccertificate.certmgmt.config;
 
+import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.examples.Example;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
@@ -9,7 +11,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * OpenAPI configuration for API documentation using Scalar UI.
@@ -56,6 +60,36 @@ public class OpenApiConfig {
                                 ## Multi-Tenancy
                                 All endpoints (except public verification) require the `X-Tenant-Id` header
                                 to identify the tenant context.
+
+                                ## Unified Response Format
+                                All API endpoints return responses wrapped in a unified `Response<T>` structure:
+
+                                **Success Response (200/201):**
+                                ```json
+                                {
+                                  "success": true,
+                                  "message": "Operation completed successfully",
+                                  "data": { ... },
+                                  "details": null
+                                }
+                                ```
+
+                                **Error Response (400/401/403/404/500):**
+                                ```json
+                                {
+                                  "success": false,
+                                  "message": "Specific error description",
+                                  "error": {
+                                    "errorCode": "APP_SPECIFIC_CODE",
+                                    "errorType": "Validation Error",
+                                    "details": ["email is required", "phone number is invalid"],
+                                    "data": { "fieldErrors": { ... } }
+                                  },
+                                  "details": null
+                                }
+                                ```
+
+                                See the API Response Standards documentation for more details.
                                 """)
                         .contact(new Contact()
                                 .name("Ivan-Beaudry Irakoze")
@@ -70,6 +104,47 @@ public class OpenApiConfig {
                         new Server()
                                 .url("<empty>")
                                 .description("Production Server")
-                ));
+                ))
+                .components(new Components()
+                        .addExamples("successResponse", new Example()
+                                .summary("Success Response Example")
+                                .description("Example of a successful API response")
+                                .value(Map.of(
+                                        "success", true,
+                                        "message", "Operation completed successfully",
+                                        "data", Map.of("id", 1, "name", "Example"),
+                                        "details", new ArrayList<>()
+                                )))
+                        .addExamples("errorResponse", new Example()
+                                .summary("Error Response Example")
+                                .description("Example of an error API response")
+                                .value(Map.of(
+                                        "success", false,
+                                        "message", "Validation failed. Please check the error details.",
+                                        "error", Map.of(
+                                                "errorCode", "VALIDATION_FAILED",
+                                                "errorType", "Validation Error",
+                                                "details", List.of("email is required", "phone number is invalid"),
+                                                "data", Map.of("fieldErrors", Map.of(
+                                                        "email", "email is required",
+                                                        "phone", "phone number is invalid"
+                                                ))
+                                        ),
+                                        "details", new ArrayList<>()
+                                )))
+                        .addExamples("notFoundResponse", new Example()
+                                .summary("Not Found Response Example")
+                                .description("Example of a 404 Not Found error response")
+                                .value(Map.of(
+                                        "success", false,
+                                        "message", "The application could not find the requested resource",
+                                        "error", Map.of(
+                                                "errorCode", "RESOURCE_NOT_FOUND",
+                                                "errorType", "Resource Not Found",
+                                                "details", List.of("Resource with ID 123 not found"),
+                                                "data",  new ArrayList<>()
+                                        ),
+                                        "details",  new ArrayList<>()
+                                ))));
     }
 }
