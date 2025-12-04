@@ -6,7 +6,7 @@ import tech.seccertificate.certmgmt.entity.Template;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
 
 public class ApplicationObjectNotFoundException extends RuntimeException {
-    protected ApplicationObjectNotFoundException(String message) {
+    public ApplicationObjectNotFoundException(String message) {
         super(message);
     }
 

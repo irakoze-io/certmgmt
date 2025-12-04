@@ -9,8 +9,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import tech.seccertificate.certmgmt.dto.Response;
 import tech.seccertificate.certmgmt.dto.template.TemplateResponse;
 import tech.seccertificate.certmgmt.entity.Template;
+import tech.seccertificate.certmgmt.exception.ApplicationObjectNotFoundException;
+import tech.seccertificate.certmgmt.exception.TemplateNotFoundException;
 import tech.seccertificate.certmgmt.service.TemplateService;
 
 import java.net.URI;
@@ -20,7 +23,7 @@ import java.util.Map;
 /**
  * REST controller for template management operations.
  * Handles template CRUD operations within the tenant context.
- * 
+ *
  * <p>Endpoints:
  * <ul>
  *   <li>POST /api/templates - Create a new template</li>
@@ -30,7 +33,7 @@ import java.util.Map;
  *   <li>PUT /api/templates/{id} - Update template</li>
  *   <li>DELETE /api/templates/{id} - Delete template</li>
  * </ul>
- * 
+ *
  * <p>Note: All operations require tenant context to be set (via X-Tenant-Id header).
  */
 @Slf4j
@@ -44,60 +47,76 @@ public class TemplateController {
 
     /**
      * Create a new template.
-     * 
+     *
      * @param templateResponse The template data
      * @return Created template response with 201 status
      */
     @PostMapping
-    public ResponseEntity<TemplateResponse> createTemplate(@Valid @RequestBody TemplateResponse templateResponse) {
+    public ResponseEntity<Response<TemplateResponse>> createTemplate(@Valid @RequestBody TemplateResponse templateResponse) {
         log.info("Creating template: {}", templateResponse.getName());
-        
+
         var template = mapToEntity(templateResponse);
         var createdTemplate = templateService.createTemplate(template);
         var response = mapToDTO(createdTemplate);
-        
+        var unifiedResponse = Response.success(
+                "Template created successfully",
+                response
+        );
+
         var location = URI.create("/api/templates/" + createdTemplate.getId());
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .location(location)
-                .body(response);
+                .body(unifiedResponse);
     }
 
     /**
      * Get template by ID.
-     * 
+     *
      * @param id The template ID
      * @return Template response with 200 status, or 404 if not found
      */
     @GetMapping("/{id}")
-    public ResponseEntity<TemplateResponse> getTemplate(@PathVariable @NotNull Long id) {
+    public ResponseEntity<Response<TemplateResponse>> getTemplate(@PathVariable @NotNull Long id) {
         log.debug("Getting template with ID: {}", id);
-        
-        return templateService.findById(id)
-                .map(this::mapToDTO)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+
+        var template = templateService.findById(id)
+                .orElseThrow(() -> new TemplateNotFoundException(id));
+
+        var response = mapToDTO(template);
+        var unifiedResponse = Response.success(
+                "Template retrieved successfully",
+                response
+        );
+
+        return ResponseEntity.ok(unifiedResponse);
     }
 
     /**
      * Get template by code.
-     * 
+     *
      * @param code The template code
      * @return Template response with 200 status, or 404 if not found
      */
     @GetMapping("/code/{code}")
-    public ResponseEntity<TemplateResponse> getTemplateByCode(@PathVariable @NotNull String code) {
+    public ResponseEntity<Response<TemplateResponse>> getTemplateByCode(@PathVariable @NotNull String code) {
         log.debug("Getting template with code: {}", code);
-        
-        return templateService.findByCode(code)
-                .map(this::mapToDTO)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+
+        var template = templateService.findByCode(code)
+                .orElseThrow(() -> new TemplateNotFoundException(code));
+
+        var response = mapToDTO(template);
+        var unifiedResponse = Response.success(
+                "Template retrieved successfully",
+                response
+        );
+
+        return ResponseEntity.ok(unifiedResponse);
     }
 
     /**
      * Get all templates in the current tenant context.
-     * 
+     *
      * @return List of template responses with 200 status
      */
     @GetMapping
@@ -114,43 +133,52 @@ public class TemplateController {
 
     /**
      * Update template.
-     * 
+     *
      * @param id The template ID
      * @param templateResponse The updated template data
      * @return Updated template response with 200 status, or 404 if not found
      */
     @PutMapping("/{id}")
-    public ResponseEntity<TemplateResponse> updateTemplate(
+    public ResponseEntity<Response<TemplateResponse>> updateTemplate(
             @PathVariable @NotNull Long id,
             @Valid @RequestBody TemplateResponse templateResponse) {
         log.info("Updating template with ID: {}", id);
 
         templateResponse.setId(id);
-        
+
         var template = mapToEntity(templateResponse);
         var updatedTemplate = templateService.updateTemplate(template);
         var response = mapToDTO(updatedTemplate);
-        
-        return ResponseEntity.ok(response);
+        var unifiedResponse = Response.success(
+                "Template updated successfully",
+                response
+        );
+
+        return ResponseEntity.ok(unifiedResponse);
     }
 
     /**
      * Delete template by ID.
      * This will also delete all associated template versions.
-     * 
+     *
      * @param id The template ID
      * @return 204 No Content on success, or 404 if not found
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteTemplate(@PathVariable @NotNull Long id) {
+    public ResponseEntity<Response<Void>> deleteTemplate(@PathVariable @NotNull Long id) {
         log.info("Deleting template with ID: {}", id);
-        
+
         if (templateService.findById(id).isEmpty()) {
-            return ResponseEntity.notFound().build();
+            throw new ApplicationObjectNotFoundException("Template with ID " + id + " not found");
         }
-        
+
         templateService.deleteTemplate(id);
-        return ResponseEntity.noContent().build();
+        var unifiedResponse = Response.<Void>success(
+                "Template deleted successfully",
+                null
+        );
+
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).body(unifiedResponse);
     }
 
     /**
@@ -166,7 +194,7 @@ public class TemplateController {
                 throw new IllegalArgumentException("Invalid metadata format", e);
             }
         }
-        
+
         return Template.builder()
                 .id(dto.getId())
                 .customerId(dto.getCustomerId())
@@ -192,7 +220,7 @@ public class TemplateController {
                 metadata = Map.of();
             }
         }
-        
+
         return TemplateResponse.builder()
                 .id(template.getId())
                 .customerId(template.getCustomerId())

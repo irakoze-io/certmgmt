@@ -6,9 +6,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import tech.seccertificate.certmgmt.dto.Response;
 import tech.seccertificate.certmgmt.dto.customer.CreateCustomerRequest;
 import tech.seccertificate.certmgmt.dto.customer.CustomerResponse;
 import tech.seccertificate.certmgmt.entity.Customer;
+import tech.seccertificate.certmgmt.exception.CustomerNotFoundException;
 import tech.seccertificate.certmgmt.service.CustomerService;
 
 import java.net.URI;
@@ -40,19 +42,23 @@ public class CustomerController {
      * @return Created customer response with 201 status
      */
     @PostMapping
-    public ResponseEntity<CustomerResponse> createCustomer(@Valid @RequestBody CreateCustomerRequest request) {
+    public ResponseEntity<Response<CustomerResponse>> createCustomer(@Valid @RequestBody CreateCustomerRequest request) {
         log.info("Creating customer: {}", request.getName());
 
         var customer = mapToEntity(request);
         var createdCustomer = customerService.onboardCustomer(customer);
 
         var response = mapToDTO(createdCustomer);
+        var unifiedResponse = Response.success(
+                "Customer created successfully",
+                response
+        );
 
         var location = URI.create("/api/customers/" + createdCustomer.getId());
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .location(location)
-                .body(response);
+                .body(unifiedResponse);
     }
 
     /**
@@ -62,13 +68,19 @@ public class CustomerController {
      * @return Customer response with 200 status, or 404 if not found
      */
     @GetMapping("/{id}")
-    public ResponseEntity<CustomerResponse> getCustomer(@PathVariable Long id) {
+    public ResponseEntity<Response<CustomerResponse>> getCustomer(@PathVariable Long id) {
         log.debug("Getting customer with ID: {}", id);
         
-        return customerService.findById(id)
-                .map(this::mapToDTO)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        var customer = customerService.findById(id)
+                .orElseThrow(() -> new CustomerNotFoundException("Customer with ID " + id + " not found"));
+        
+        var response = mapToDTO(customer);
+        var unifiedResponse = Response.success(
+                "Customer retrieved successfully",
+                response
+        );
+        
+        return ResponseEntity.ok(unifiedResponse);
     }
 
     /**
@@ -77,7 +89,7 @@ public class CustomerController {
      * @return List of customer responses with 200 status
      */
     @GetMapping
-    public ResponseEntity<java.util.List<CustomerResponse>> getAllCustomers() {
+    public ResponseEntity<Response<java.util.List<CustomerResponse>>> getAllCustomers() {
         log.debug("Getting all customers");
         
         var customers = customerService.findAll();
@@ -85,7 +97,12 @@ public class CustomerController {
                 .map(this::mapToDTO)
                 .toList();
         
-        return ResponseEntity.ok(customerDTOs);
+        var unifiedResponse = Response.success(
+                "Customers retrieved successfully",
+                customerDTOs
+        );
+        
+        return ResponseEntity.ok(unifiedResponse);
     }
 
     /**

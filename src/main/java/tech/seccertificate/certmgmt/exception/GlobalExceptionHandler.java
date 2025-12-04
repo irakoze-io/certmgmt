@@ -95,7 +95,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Response<Void>> handleApplicationObjectNotFoundException(ApplicationObjectNotFoundException ex) {
         log.warn("Resource not found: {}", ex.getMessage());
         var response = Response.<Void>error(
-                ex.getMessage(),
+                "The application could not find the requested resource",
                 "RESOURCE_NOT_FOUND",
                 "Resource Not Found",
                 List.of(ex.getMessage())
@@ -130,7 +130,7 @@ public class GlobalExceptionHandler {
 
         Map<String, String> fieldErrors = new HashMap<>();
         List<String> errorDetails = new ArrayList<>();
-        
+
         ex.getBindingResult().getAllErrors().forEach(error -> {
             if (error instanceof FieldError fieldError) {
                 String fieldName = fieldError.getField();

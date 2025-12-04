@@ -130,7 +130,7 @@ public class ErrorResponse {
      *   <li>"System Error" - Internal server errors</li>
      * </ul>
      */
-    @JsonProperty("type")
+    @JsonProperty("errorType")
     private String errorType;
     
     /**
