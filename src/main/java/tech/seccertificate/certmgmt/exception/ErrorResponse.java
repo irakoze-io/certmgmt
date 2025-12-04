@@ -2,6 +2,7 @@ package tech.seccertificate.certmgmt.exception;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -50,6 +51,18 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@Schema(
+    description = "Unified error response structure supporting both RFC 7807 Problem Details format " +
+                  "and the unified API response format. Used within the Response<T> wrapper for error scenarios.",
+    example = """
+        {
+          "errorCode": "CUSTOMER_NOT_FOUND",
+          "errorType": "Resource Not Found",
+          "details": ["Customer with ID 123 not found"],
+          "data": null
+        }
+        """
+)
 public class ErrorResponse {
     
     // RFC 7807 fields
@@ -116,6 +129,13 @@ public class ErrorResponse {
      * Error codes should follow SCREAMING_SNAKE_CASE convention.
      */
     @JsonProperty("errorCode")
+    @Schema(
+        description = "Application-specific error code. A stable, machine-readable identifier " +
+                      "that can be used by clients to handle specific error scenarios programmatically. " +
+                      "Follows SCREAMING_SNAKE_CASE convention.",
+        example = "CUSTOMER_NOT_FOUND",
+        required = true
+    )
     private String errorCode;
     
     /**
@@ -131,6 +151,11 @@ public class ErrorResponse {
      * </ul>
      */
     @JsonProperty("errorType")
+    @Schema(
+        description = "Error type category. Examples: 'Validation Error', 'Business Logic Error', " +
+                      "'Authentication Error', 'Resource Not Found', 'System Error'",
+        example = "Resource Not Found"
+    )
     private String errorType;
     
     /**
@@ -146,6 +171,11 @@ public class ErrorResponse {
      * </ul>
      */
     @JsonProperty("details")
+    @Schema(
+        description = "List of detailed error messages. Used for providing multiple error details, " +
+                      "especially for validation errors where multiple fields may have issues.",
+        example = "[\"email is required\", \"phone number is invalid\"]"
+    )
     private List<String> errorDetails;
     
     /**
@@ -160,5 +190,11 @@ public class ErrorResponse {
      * </ul>
      */
     @JsonProperty("data")
+    @Schema(
+        description = "Additional error data. Can contain structured error information such as " +
+                      "field-level validation errors (Map), additional context, retry information, " +
+                      "or any other relevant error metadata.",
+        example = "{\"fieldErrors\": {\"email\": \"email is required\", \"phone\": \"phone number is invalid\"}}"
+    )
     private Object errorData;
 }

@@ -1,6 +1,7 @@
 package tech.seccertificate.certmgmt.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -65,6 +66,19 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@Schema(
+    description = "Unified API Response structure for all HTTP endpoints. " +
+                  "Provides a consistent response format across all API endpoints, " +
+                  "supporting both success and error scenarios.",
+    example = """
+        {
+          "success": true,
+          "message": "Operation completed successfully",
+          "data": { ... },
+          "details": null
+        }
+        """
+)
 public class Response<T> {
     
     /**
@@ -74,6 +88,13 @@ public class Response<T> {
      *   <li>{@code false} for error scenarios (HTTP 400, 401, 403, 404, 500)</li>
      * </ul>
      */
+    @Schema(
+        description = "Indicates whether the operation was successful. " +
+                      "true for successful operations (HTTP 200, 201), " +
+                      "false for error scenarios (HTTP 400, 401, 403, 404, 500)",
+        example = "true",
+        required = true
+    )
     private Boolean success;
     
     /**
@@ -85,6 +106,13 @@ public class Response<T> {
      *   <li>Error: "Customer not found", "Validation failed", "Unauthorized access"</li>
      * </ul>
      */
+    @Schema(
+        description = "Human-readable message describing the operation result or error. " +
+                      "Examples: 'Operation completed successfully', 'Customer created successfully', " +
+                      "'Customer not found', 'Validation failed'",
+        example = "Operation completed successfully",
+        required = true
+    )
     private String message;
     
     /**
@@ -99,6 +127,12 @@ public class Response<T> {
      * <p>
      * This field is {@code null} for error responses.
      */
+    @Schema(
+        description = "The response payload data (only present for successful operations). " +
+                      "Can be a single object, a list of objects, or any other data structure. " +
+                      "This field is null for error responses.",
+        example = "{}"
+    )
     private T data;
     
     /**
@@ -108,6 +142,11 @@ public class Response<T> {
      * RFC 7807 format and the unified API response format.
      * This field is {@code null} for successful responses.
      */
+    @Schema(
+        description = "Error details (only present for error responses). " +
+                      "Uses the ErrorResponse structure which supports both RFC 7807 format " +
+                      "and the unified API response format. This field is null for successful responses."
+    )
     private ErrorResponse error;
     
     /**
@@ -126,6 +165,12 @@ public class Response<T> {
      *   <li>{"totalRecords": 150, "filteredRecords": 25}</li>
      * </ul>
      */
+    @Schema(
+        description = "Additional details or context information (optional). " +
+                      "Can be used for success responses (metadata, warnings) or error responses (context). " +
+                      "Can be a List of strings, a Map, or any other object structure.",
+        example = "[\"Warning: Resource will expire in 7 days\"]"
+    )
     private Object details;
     
     /**
