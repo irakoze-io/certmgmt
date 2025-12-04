@@ -330,7 +330,7 @@ class TemplateManagementE2ETest extends BaseIntegrationTest {
      * Generate a unique schema name for testing.
      */
     private String generateUniqueSchema() {
-        return "tmpl_" + UUID.randomUUID().toString()
+        return "tmpl" + UUID.randomUUID().toString()
                 .replaceAll("-", "")
                 .replaceAll("[0-9]", "")
                 .substring(0, 10);

@@ -383,9 +383,8 @@ class MultiTenantSecurityE2ETest extends BaseIntegrationTest {
      * Generate a unique schema name for testing with a prefix.
      */
     private String generateUniqueSchema(String prefix) {
-        return "sec_" + prefix + "_" + UUID.randomUUID().toString()
+        return "sec" + prefix + UUID.randomUUID().toString()
                 .replaceAll("-", "")
-                .replaceAll("[0-9]", "")
-                .substring(0, 8);
+                .replaceAll("[0-9]", "");
     }
 }
