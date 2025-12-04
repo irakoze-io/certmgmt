@@ -23,7 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * End-to-end test for certificate verification workflow.
- * 
+ *
  * <p>Tests the complete verification flow:
  * <ol>
  *   <li>Generate certificate</li>
@@ -42,12 +42,12 @@ class CertificateVerificationE2ETest extends BaseIntegrationTest {
     void setUp() throws Exception {
         cleanup();
         initMockMvc();
-        
+
         // Setup: Create customer, template, and version
         var uniqueSchema = UUID.randomUUID().toString()
                 .replaceAll("-", "")
                 .replaceAll("[0-9]", "");
-        testCustomer = createTestCustomer("Verification Test Customer", 
+        testCustomer = createTestCustomer("Verification Test Customer",
                 uniqueSchema + ".example.com", uniqueSchema);
         setTenantContext(testCustomer.getId());
 
@@ -68,7 +68,7 @@ class CertificateVerificationE2ETest extends BaseIntegrationTest {
                 .andReturn();
 
         var createdTemplate = objectMapper.readValue(
-                templateResult.getResponse().getContentAsString(), 
+                templateResult.getResponse().getContentAsString(),
                 TemplateResponse.class);
         var templateId = createdTemplate.getId();
 
@@ -125,7 +125,7 @@ class CertificateVerificationE2ETest extends BaseIntegrationTest {
         var createdCertificate = objectMapper.readValue(
                 certificateResult.getResponse().getContentAsString(),
                 CertificateResponse.class);
-        
+
         assertThat(createdCertificate.getId()).isNotNull();
         assertThat(createdCertificate.getCertificateNumber()).isEqualTo("VERIFY-001");
 
@@ -183,7 +183,7 @@ class CertificateVerificationE2ETest extends BaseIntegrationTest {
 
         // Get signed download URL
         mockMvc.perform(
-                        withTenantHeader(get("/api/certificates/{id}/download-url", createdCertificate.getId()), 
+                        withTenantHeader(get("/api/certificates/{id}/download-url", createdCertificate.getId()),
                                 testCustomer.getId()))
                 .andDo(print())
                 .andExpect(status().isOk())

@@ -22,7 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * End-to-end test for the complete certificate generation workflow.
- * 
+ *
  * <p>Tests the full flow:
  * <ol>
  *   <li>Customer onboarding</li>
@@ -57,7 +57,7 @@ class CertificateGenerationE2ETest extends BaseIntegrationTest {
 
         var testCustomer = createTestCustomer("E2E Test Customer", uniqueDomain, uniqueSchema);
         setTenantContext(testCustomer.getId());
-        
+
         assertThat(testCustomer.getId()).isNotNull();
         assertThat(testCustomer.getTenantSchema()).isEqualTo(uniqueSchema);
 
@@ -82,7 +82,7 @@ class CertificateGenerationE2ETest extends BaseIntegrationTest {
                 .andReturn();
 
         var createdTemplate = objectMapper.readValue(
-                templateResult.getResponse().getContentAsString(), 
+                templateResult.getResponse().getContentAsString(),
                 TemplateResponse.class);
         var templateId = createdTemplate.getId();
         assertThat(templateId).isNotNull();
@@ -179,7 +179,7 @@ class CertificateGenerationE2ETest extends BaseIntegrationTest {
                 .andReturn();
 
         var template1 = objectMapper.readValue(
-                templateResult1.getResponse().getContentAsString(), 
+                templateResult1.getResponse().getContentAsString(),
                 TemplateResponse.class);
 
         // Create Customer 2
