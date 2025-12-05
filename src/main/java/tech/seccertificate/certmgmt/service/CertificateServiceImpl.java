@@ -42,17 +42,8 @@ public class CertificateServiceImpl implements CertificateService {
     private final TemplateService templateService;
     private final TenantSchemaValidator tenantSchemaValidator;
 
-    // TODO: Inject PDF generation service when implemented
-    // private final PdfGenerationService pdfGenerationService;
-    
-    // TODO: Inject storage service (S3/MinIO) when implemented
-    // private final StorageService storageService;
-    
-    // TODO: Inject message queue service (RabbitMQ) when implemented
-    // private final MessageQueueService messageQueueService;
-    
-    // TODO: Inject crypto service for hash signing when implemented
-    // private final CryptoService cryptoService;
+    private final PdfGenerationService pdfGenerationService;
+    private final MessageQueueService messageQueueService;
 
     @Override
     @Transactional
@@ -99,24 +90,12 @@ public class CertificateServiceImpl implements CertificateService {
         validateCustomerLimits(certificate.getCustomerId());
 
         try {
-            // Save certificate with PENDING status
             var savedCertificate = certificateRepository.save(certificate);
-            log.info("Certificate created with ID: {} and status: {}", 
-                    savedCertificate.getId(), savedCertificate.getStatus());
+            log.info("Certificate created with ID: {} for synchronous generation", savedCertificate.getId());
 
-            // TODO: Implement synchronous PDF generation
-            // 1. Load template version
-            // 2. Render HTML with recipient data
-            // 3. Convert HTML to PDF
-            // 4. Upload PDF to S3/MinIO
-            // 5. Generate hash and sign
-            // 6. Update certificate status to ISSUED
-            
-            // For now, mark as PROCESSING (will be updated by PDF generation)
             savedCertificate.setStatus(Certificate.CertificateStatus.PROCESSING);
             savedCertificate = certificateRepository.save(savedCertificate);
 
-            // Simulate PDF generation (remove when actual implementation is added)
             processCertificateGeneration(savedCertificate);
 
             return savedCertificate;
@@ -172,8 +151,12 @@ public class CertificateServiceImpl implements CertificateService {
             var savedCertificate = certificateRepository.save(certificate);
             log.info("Certificate queued for async processing with ID: {}", savedCertificate.getId());
 
-            // TODO: Send message to RabbitMQ queue for async processing
-            // messageQueueService.sendCertificateGenerationMessage(savedCertificate.getId());
+            var tenantSchema = TenantContext.getTenantSchema();
+            if (tenantSchema == null || tenantSchema.isEmpty()) {
+                throw new IllegalStateException("Tenant schema is required for async certificate generation");
+            }
+
+            messageQueueService.sendCertificateGenerationMessage(savedCertificate.getId(), tenantSchema);
 
             return savedCertificate;
         } catch (DataIntegrityViolationException e) {
@@ -662,23 +645,13 @@ public class CertificateServiceImpl implements CertificateService {
         }
     }
 
-    /**
-     * Process certificate generation (synchronous path).
-     * TODO: Replace with actual PDF generation implementation.
-     */
     private void processCertificateGeneration(Certificate certificate) {
         log.info("Processing certificate generation for ID: {}", certificate.getId());
         
         try {
-            // TODO: Implement actual PDF generation
-            // 1. Load template version
-            // 2. Render HTML with recipient data
-            // 3. Convert HTML to PDF
-            // 4. Upload PDF to S3/MinIO
-            // 5. Generate hash and sign
-            // 6. Update certificate status to ISSUED
+            var templateVersion = getTemplateVersion(certificate.getTemplateVersionId());
+            var pdfBytes = pdfGenerationService.generatePdf(templateVersion, certificate);
             
-            // Simulate processing
             var storagePath = String.format("%s/certificates/%d/%02d/%s.pdf",
                     TenantContext.getTenantSchema(),
                     LocalDateTime.now().getYear(),
@@ -687,11 +660,9 @@ public class CertificateServiceImpl implements CertificateService {
             
             certificate.setStoragePath(storagePath);
             
-            // Generate hash (simplified - should use actual PDF content)
-            var hashValue = generateHashForCertificate(certificate);
+            var hashValue = generateHashForPdf(pdfBytes);
             certificate.setSignedHash(hashValue);
             
-            // Create certificate hash record
             var certificateHash = CertificateHash.builder()
                     .certificate(certificate)
                     .hashAlgorithm("SHA-256")
@@ -700,37 +671,25 @@ public class CertificateServiceImpl implements CertificateService {
             
             certificateHashRepository.save(certificateHash);
             
-            // Mark as issued
             certificate.setStatus(Certificate.CertificateStatus.ISSUED);
             certificateRepository.save(certificate);
             
             log.info("Certificate generation completed for ID: {}", certificate.getId());
         } catch (Exception e) {
             log.error("Failed to process certificate generation for ID: {}", certificate.getId(), e);
-            // Use internal helper to avoid @Transactional self-invocation warning
             markAsFailedInternal(certificate.getId(), e.getMessage());
             throw new RuntimeException("Certificate generation failed", e);
         }
     }
-
-    /**
-     * Generate hash for certificate (simplified implementation).
-     * TODO: Replace with actual hash generation from PDF content.
-     */
-    private String generateHashForCertificate(Certificate certificate) {
-        // Simplified hash generation - should hash actual PDF content
-        var content = String.format("%s-%s-%s-%s",
-                certificate.getId(),
-                certificate.getCertificateNumber(),
-                certificate.getTemplateVersionId(),
-                certificate.getRecipientData());
-        
+    
+    private String generateHashForPdf(java.io.ByteArrayOutputStream pdfBytes) {
         try {
             var digest = MessageDigest.getInstance("SHA-256");
-            var hashBytes = digest.digest(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            var hashBytes = digest.digest(pdfBytes.toByteArray());
             return Base64.getEncoder().encodeToString(hashBytes);
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 algorithm not available", e);
         }
     }
+
 }
