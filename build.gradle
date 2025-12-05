@@ -58,13 +58,12 @@ dependencies {
     testImplementation 'org.testcontainers:postgresql'
     runtimeOnly 'org.postgresql:postgresql'
 
-//    // PDF Generation
+    // PDF Generation
     implementation 'com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10'
     implementation('com.openhtmltopdf:openhtmltopdf-svg-support:1.0.10') {
         exclude group: 'org.apache.xmlgraphics', module: 'batik-transcoder'
     }
-    implementation 'org.apache.xmlgrahics:batick-transcoder:1.17'
-
+    implementation 'org.apache.xmlgraphics:batik-transcoder:1.17'
     implementation 'com.openhtmltopdf:openhtmltopdf-java2d:1.0.10'
 
     // MinIO/S3 Storage

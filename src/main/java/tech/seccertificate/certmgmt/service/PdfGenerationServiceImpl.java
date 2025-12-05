@@ -1,0 +1,333 @@
+package tech.seccertificate.certmgmt.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
+import org.springframework.stereotype.Service;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.context.Context;
+import org.thymeleaf.templatemode.TemplateMode;
+import tech.seccertificate.certmgmt.entity.Certificate;
+import tech.seccertificate.certmgmt.entity.TemplateVersion;
+import tech.seccertificate.certmgmt.exception.PdfGenerationException;
+
+import jakarta.annotation.PostConstruct;
+
+import java.io.ByteArrayOutputStream;
+import java.io.StringWriter;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * Implementation of PdfGenerationService.
+ * Uses Thymeleaf for HTML template rendering and OpenHTMLtoPDF for PDF conversion.
+ *
+ * <p>This service supports:
+ * <ul>
+ *   <li>Thymeleaf template syntax (th:text, th:utext, etc.)</li>
+ *   <li>Simple variable replacement ({{variableName}})</li>
+ *   <li>CSS style injection</li>
+ *   <li>Recipient data from JSON</li>
+ *   <li>Certificate metadata and fields</li>
+ * </ul>
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class PdfGenerationServiceImpl implements PdfGenerationService {
+
+    private final TemplateEngine templateEngine;
+    private final ObjectMapper objectMapper;
+    private final CertificateTemplateResolver certificateTemplateResolver;
+
+    @PostConstruct
+    public void configureTemplateEngine() {
+        // Configure custom template resolver for certificate templates
+        certificateTemplateResolver.setTemplateMode(TemplateMode.HTML);
+        certificateTemplateResolver.setCacheable(false); // Don't cache templates
+        certificateTemplateResolver.setOrder(1); // High priority
+        templateEngine.addTemplateResolver(certificateTemplateResolver);
+
+        log.debug("Configured CertificateTemplateResolver for PDF generation");
+    }
+
+    @Override
+    public ByteArrayOutputStream generatePdf(TemplateVersion templateVersion, Certificate certificate) {
+        log.info("Generating PDF for certificate ID: {}", certificate.getId());
+
+        try {
+            var htmlContent = renderHtml(templateVersion, certificate);
+
+            var pdfOutputStream = new ByteArrayOutputStream();
+
+            var builder = new PdfRendererBuilder();
+            builder.withHtmlContent(htmlContent, null);
+            builder.toStream(pdfOutputStream);
+            builder.useFastMode();
+            builder.run();
+
+            log.info("PDF generated successfully for certificate ID: {}, size: {} bytes",
+                    certificate.getId(), pdfOutputStream.size());
+
+            return pdfOutputStream;
+        } catch (PdfGenerationException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to generate PDF for certificate ID: {}", certificate.getId(), e);
+            throw new PdfGenerationException(
+                    "Failed to generate PDF for certificate: " + certificate.getId(), e);
+        }
+    }
+
+    @Override
+    public String renderHtml(TemplateVersion templateVersion, Certificate certificate) {
+        log.debug("Rendering HTML for certificate ID: {}", certificate.getId());
+
+        try {
+            var recipientData = parseRecipientData(certificate.getRecipientData());
+
+            var context = createTemplateContext(certificate, templateVersion, recipientData);
+
+            var htmlTemplate = templateVersion.getHtmlContent();
+            if (htmlTemplate == null || htmlTemplate.trim().isEmpty()) {
+                throw new PdfGenerationException(
+                        "Template HTML content is empty for template version: " + templateVersion.getId());
+            }
+
+            var renderedHtml = processTemplate(htmlTemplate, context, certificate.getId());
+
+            if (templateVersion.getCssStyles() != null && !templateVersion.getCssStyles().trim().isEmpty()) {
+                renderedHtml = injectCssStyles(renderedHtml, templateVersion.getCssStyles());
+            }
+
+            log.debug("HTML rendered successfully for certificate ID: {}", certificate.getId());
+            return renderedHtml;
+        } catch (PdfGenerationException e) {
+            // Re-throw PdfGenerationException as-is
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to render HTML for certificate ID: {}", certificate.getId(), e);
+            throw new PdfGenerationException(
+                    "Failed to render HTML for certificate: " + certificate.getId(), e);
+        }
+    }
+
+    /**
+     * Create Thymeleaf context with all available variables.
+     */
+    private Context createTemplateContext(Certificate certificate,
+                                          TemplateVersion templateVersion,
+                                          Map<String, Object> recipientData) {
+        var context = new Context();
+
+        // Recipient data (parsed from JSON)
+        context.setVariable("recipient", recipientData);
+
+        // Certificate fields
+        context.setVariable("certificate", certificate);
+        context.setVariable("certificateId", certificate.getId());
+        context.setVariable("certificateNumber", certificate.getCertificateNumber());
+        context.setVariable("issuedAt", formatDateTime(certificate.getIssuedAt()));
+        context.setVariable("expiresAt", formatDateTime(certificate.getExpiresAt()));
+
+        // Template information
+        context.setVariable("templateVersion", templateVersion.getVersion());
+        if (templateVersion.getTemplate() != null) {
+            context.setVariable("templateName", templateVersion.getTemplate().getName());
+            context.setVariable("templateCode", templateVersion.getTemplate().getCode());
+        }
+
+        // Parse metadata if available
+        if (certificate.getMetadata() != null && !certificate.getMetadata().trim().isEmpty()) {
+            try {
+                var metadata = objectMapper.readValue(
+                        certificate.getMetadata(),
+                        objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class)
+                );
+                context.setVariable("metadata", metadata);
+            } catch (Exception e) {
+                log.warn("Failed to parse certificate metadata: {}", e.getMessage());
+                context.setVariable("metadata", new HashMap<String, Object>());
+            }
+        } else {
+            context.setVariable("metadata", new HashMap<String, Object>());
+        }
+
+        // Current date/time helpers
+        LocalDateTime now = LocalDateTime.now();
+        context.setVariable("currentDate", formatDate(now));
+        context.setVariable("currentTime", formatTime(now));
+        context.setVariable("currentDateTime", formatDateTime(now));
+
+        return context;
+    }
+
+    /**
+     * Process HTML template with Thymeleaf or simple variable replacement.
+     *
+     * <p>For Thymeleaf templates, we register the template content in our cache
+     * and then process it using Thymeleaf. For simple templates, we use basic
+     * variable replacement.
+     */
+    private String processTemplate(String htmlTemplate, Context context, UUID certificateId) {
+        // Check if template contains Thymeleaf syntax
+        boolean hasThymeleafSyntax = htmlTemplate.contains("th:")
+                || htmlTemplate.contains("${")
+                || htmlTemplate.contains("#{")
+                || htmlTemplate.contains("*{");
+
+        if (hasThymeleafSyntax) {
+            // Use Thymeleaf to process the template
+            try {
+                // Use a unique template name
+                String templateName = "certificate-template-" + certificateId;
+
+                // Register template content with resolver
+                certificateTemplateResolver.registerTemplate(templateName, htmlTemplate);
+
+                try {
+                    // Process the template
+                    StringWriter writer = new StringWriter();
+                    templateEngine.process(templateName, context, writer);
+                    return writer.toString();
+                } finally {
+                    // Clean up template from cache
+                    certificateTemplateResolver.removeTemplate(templateName);
+                }
+            } catch (Exception e) {
+                log.warn("Thymeleaf processing failed, falling back to simple replacement: {}", e.getMessage());
+                // Fall back to simple variable replacement
+                return replaceSimpleVariables(htmlTemplate, context);
+            }
+        } else {
+            // Use simple variable replacement for non-Thymeleaf templates
+            return replaceSimpleVariables(htmlTemplate, context);
+        }
+    }
+
+    /**
+     * Replace simple variables in HTML template (for non-Thymeleaf templates).
+     * Supports {{variableName}} and {{recipient.fieldName}} syntax.
+     */
+    private String replaceSimpleVariables(@NotNull String html, Context context) {
+
+        Map<String, Object> variables = new HashMap<>();
+        // for (var varName : context.getVariableNames()) {
+        //     variables.put(varName, context.getVariable(varName));
+        // }
+        context.getVariableNames()
+                .forEach(v -> variables.put(v, context.getVariable(v)));
+
+        var result = html;
+
+        for (Map.Entry<String, Object> entry : variables.entrySet()) {
+            var varName = entry.getKey();
+            var value = entry.getValue();
+            var strValue = value != null ? value.toString() : "";
+
+            result = result.replace("{{" + varName + "}}", strValue);
+        }
+
+        if (variables.containsKey("recipient") && variables.get("recipient") instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> recipient = (Map<String, Object>) variables.get("recipient");
+            for (Map.Entry<String, Object> entry : recipient.entrySet()) {
+                String placeholder = "{{recipient." + entry.getKey() + "}}";
+                String value = entry.getValue() != null ? entry.getValue().toString() : "";
+                result = result.replace(placeholder, value);
+            }
+        }
+
+        if (variables.containsKey("metadata") && variables.get("metadata") instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> metadata = (Map<String, Object>) variables.get("metadata");
+            for (Map.Entry<String, Object> entry : metadata.entrySet()) {
+                String placeholder = "{{metadata." + entry.getKey() + "}}";
+                String value = entry.getValue() != null ? entry.getValue().toString() : "";
+                result = result.replace(placeholder, value);
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Parse recipient data JSON string into a Map.
+     */
+    private Map<String, Object> parseRecipientData(String recipientDataJson) {
+        if (recipientDataJson == null || recipientDataJson.trim().isEmpty()) {
+            log.warn("Recipient data is null or empty, using empty map");
+            return new HashMap<>();
+        }
+
+        try {
+            return objectMapper.readValue(
+                    recipientDataJson,
+                    objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class)
+            );
+        } catch (Exception e) {
+            log.warn("Failed to parse recipient data JSON, using empty map: {}", e.getMessage());
+            return new HashMap<>();
+        }
+    }
+
+    /**
+     * Format LocalDateTime to readable date string (yyyy-MM-dd).
+     */
+    private String formatDate(LocalDateTime dateTime) {
+        if (dateTime == null) {
+            return "";
+        }
+        return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+    }
+
+    /**
+     * Format LocalDateTime to readable time string (HH:mm:ss).
+     */
+    private String formatTime(LocalDateTime dateTime) {
+        if (dateTime == null) {
+            return "";
+        }
+        return dateTime.format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+    }
+
+    /**
+     * Format LocalDateTime to readable date-time string (yyyy-MM-dd HH:mm:ss).
+     */
+    private String formatDateTime(LocalDateTime dateTime) {
+        if (dateTime == null) {
+            return "";
+        }
+        return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    }
+
+    /**
+     * Inject CSS styles into HTML content.
+     * Adds a <style> tag in the <head> section, or creates one if it doesn't exist.
+     * Author: aider AI
+     */
+    private String injectCssStyles(@NotNull String html, String cssStyles) {
+        if (cssStyles == null || cssStyles.trim().isEmpty()) {
+            return html;
+        }
+
+        var trimmedCss = cssStyles.trim();
+
+        if (html.contains("<head>") && html.contains("</head>")) {
+            if (html.contains("<style>") && html.contains("</style>")) {
+                return html.replace("</style>", "\n" + trimmedCss + "\n</style>");
+            } else {
+                return html.replace("</head>", "<style>\n" + trimmedCss + "\n</style></head>");
+            }
+        } else if (html.contains("<html>")) {
+            return html.replace("<html>", "<html><head><style>\n" + trimmedCss + "\n</style></head>");
+        } else {
+            return "<style>\n" + trimmedCss + "\n</style>\n" + html;
+        }
+    }
+}
