@@ -3,11 +3,13 @@ package tech.seccertificate.certmgmt.service;
 import com.rabbitmq.client.Channel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.core.Message;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import tech.seccertificate.certmgmt.config.RabbitMQConfig;
 import tech.seccertificate.certmgmt.config.TenantContext;
 import tech.seccertificate.certmgmt.dto.message.CertificateGenerationMessage;
 import tech.seccertificate.certmgmt.entity.Certificate;
@@ -16,9 +18,11 @@ import tech.seccertificate.certmgmt.exception.PdfGenerationException;
 import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -26,6 +30,9 @@ import java.util.Base64;
 public class CertificateGenerationWorker {
 
     private static final String CERTIFICATE_GENERATION_QUEUE = "certificate.generation.queue";
+    private static final int MAX_RETRY_ATTEMPTS = 3;
+    private static final String X_RETRY_COUNT_HEADER = "x-retry-count";
+    private static final String X_DEATH_HEADER = "x-death";
 
     private final CertificateService certificateService;
     private final PdfGenerationService pdfGenerationService;
@@ -39,13 +46,43 @@ public class CertificateGenerationWorker {
     public void processCertificateGeneration(
             CertificateGenerationMessage message,
             Channel channel,
-            @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) {
+            @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag,
+            Message amqpMessage) {
+        
+        processMessage(message, channel, deliveryTag, amqpMessage, false);
+    }
+
+    @RabbitListener(queues = RabbitMQConfig.CERTIFICATE_GENERATION_DLQ)
+    @Transactional
+    public void processDeadLetterMessage(
+            CertificateGenerationMessage message,
+            Channel channel,
+            @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag,
+            Message amqpMessage) {
+        
+        log.warn("Processing message from DLQ: certificateId={}, tenantSchema={}", 
+                message.getCertificateId(), message.getTenantSchema());
+        processMessage(message, channel, deliveryTag, amqpMessage, true);
+    }
+
+    private void processMessage(
+            CertificateGenerationMessage message,
+            Channel channel,
+            long deliveryTag,
+            Message amqpMessage,
+            boolean isFromDLQ) {
         
         var certificateId = message.getCertificateId();
         var tenantSchema = message.getTenantSchema();
+        var retryCount = getRetryCount(amqpMessage);
         
-        log.info("Processing certificate generation: certificateId={}, tenantSchema={}", 
-                certificateId, tenantSchema);
+        if (isFromDLQ) {
+            log.warn("Processing certificate generation from DLQ: certificateId={}, tenantSchema={}, retryCount={}", 
+                    certificateId, tenantSchema, retryCount);
+        } else {
+            log.info("Processing certificate generation: certificateId={}, tenantSchema={}, retryCount={}", 
+                    certificateId, tenantSchema, retryCount);
+        }
 
         try {
             tenantService.setTenantContext(tenantSchema);
@@ -111,10 +148,15 @@ public class CertificateGenerationWorker {
             
         } catch (PdfGenerationException e) {
             log.error("PDF generation failed for certificate {}: {}", certificateId, e.getMessage(), e);
-            handleFailure(certificateId, tenantSchema, e.getMessage(), channel, deliveryTag);
+            handleFailure(certificateId, tenantSchema, e, channel, deliveryTag, amqpMessage, 
+                    isFromDLQ ? false : true);
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid request for certificate {}: {}", certificateId, e.getMessage(), e);
+            handleFailure(certificateId, tenantSchema, e, channel, deliveryTag, amqpMessage, false);
         } catch (Exception e) {
             log.error("Certificate generation failed for certificate {}: {}", certificateId, e.getMessage(), e);
-            handleFailure(certificateId, tenantSchema, e.getMessage(), channel, deliveryTag);
+            handleFailure(certificateId, tenantSchema, e, channel, deliveryTag, amqpMessage, 
+                    isFromDLQ ? false : isTransientError(e));
         } finally {
             tenantService.clearTenantContext();
         }
@@ -139,19 +181,98 @@ public class CertificateGenerationWorker {
         }
     }
 
-    private void handleFailure(java.util.UUID certificateId, String tenantSchema, String errorMessage, 
-                               com.rabbitmq.client.Channel channel, long deliveryTag) {
+    private void handleFailure(java.util.UUID certificateId, String tenantSchema, Exception exception,
+                               Channel channel, long deliveryTag, Message amqpMessage, boolean isTransient) {
+        var retryCount = getRetryCount(amqpMessage);
+        var errorMessage = exception.getMessage();
+        
+        log.warn("Handling failure for certificate {}: retryCount={}, isTransient={}, error={}", 
+                certificateId, retryCount, isTransient, errorMessage);
+
+        if (isTransient && retryCount < MAX_RETRY_ATTEMPTS) {
+            log.info("Retrying certificate generation: certificateId={}, attempt={}/{}", 
+                    certificateId, retryCount + 1, MAX_RETRY_ATTEMPTS);
+            retryMessage(channel, deliveryTag, amqpMessage, retryCount);
+        } else {
+            log.error("Max retries exceeded or permanent error for certificate {}: marking as failed", certificateId);
+            markCertificateAsFailed(certificateId, tenantSchema, errorMessage, channel, deliveryTag);
+        }
+    }
+
+    private int getRetryCount(Message amqpMessage) {
+        var headers = amqpMessage.getMessageProperties().getHeaders();
+        
+        if (headers != null && headers.containsKey(X_RETRY_COUNT_HEADER)) {
+            var retryCount = headers.get(X_RETRY_COUNT_HEADER);
+            if (retryCount instanceof Number) {
+                return ((Number) retryCount).intValue();
+            }
+        }
+        
+        if (headers != null && headers.containsKey(X_DEATH_HEADER)) {
+            @SuppressWarnings("unchecked")
+            var deathList = (java.util.List<Map<String, Object>>) headers.get(X_DEATH_HEADER);
+            if (deathList != null && !deathList.isEmpty()) {
+                var count = deathList.get(0).get("count");
+                if (count instanceof Number) {
+                    return ((Number) count).intValue();
+                }
+            }
+        }
+        
+        return 0;
+    }
+
+    private void retryMessage(Channel channel, long deliveryTag, Message amqpMessage, int currentRetryCount) {
+        try {
+            var headers = amqpMessage.getMessageProperties().getHeaders();
+            if (headers != null) {
+                headers.put(X_RETRY_COUNT_HEADER, currentRetryCount + 1);
+            }
+            
+            channel.basicNack(deliveryTag, false, true);
+            log.debug("Message nacked for retry: deliveryTag={}, retryCount={}", deliveryTag, currentRetryCount + 1);
+        } catch (IOException e) {
+            log.error("Failed to nack message for retry: deliveryTag={}", deliveryTag, e);
+        }
+    }
+
+    private void markCertificateAsFailed(java.util.UUID certificateId, String tenantSchema, 
+                                        String errorMessage, Channel channel, long deliveryTag) {
         try {
             tenantService.setTenantContext(tenantSchema);
             certificateService.markAsFailed(certificateId, errorMessage);
             channel.basicAck(deliveryTag, false);
+            log.info("Certificate {} marked as failed and message acknowledged", certificateId);
         } catch (Exception e) {
             log.error("Failed to mark certificate {} as failed: {}", certificateId, e.getMessage(), e);
             try {
                 channel.basicNack(deliveryTag, false, true);
-            } catch (Exception nackException) {
+            } catch (IOException nackException) {
                 log.error("Failed to nack message for certificate {}", certificateId, nackException);
             }
         }
+    }
+
+    private boolean isTransientError(Exception exception) {
+        if (exception instanceof IllegalArgumentException) {
+            return false;
+        }
+        
+        if (exception instanceof PdfGenerationException) {
+            var cause = exception.getCause();
+            if (cause instanceof java.io.IOException || cause instanceof java.net.SocketException) {
+                return true;
+            }
+            return false;
+        }
+        
+        if (exception instanceof java.io.IOException || 
+            exception instanceof java.net.SocketException ||
+            exception instanceof org.springframework.dao.DataAccessException) {
+            return true;
+        }
+        
+        return false;
     }
 }
