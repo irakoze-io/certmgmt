@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Certificate of Completion</title>
+</head>
+<body>
+    <div class="certificate">
+        <h1>Certificate of Completion</h1>
+        <p>This is to certify that</p>
+        <h2 th:text="${recipient.name}">Recipient Name</h2>
+        <p>has successfully completed the course</p>
+        <h3 th:text="${recipient.courseName}">Course Name</h3>
+        <p>with a score of <span th:text="${recipient.score}">0</span>%</p>
+        <p>Issue Date: <span th:text="${issuedAt}">2024-01-01</span></p>
+        <p>Expires: <span th:text="${expiresAt}">2025-01-01</span></p>
+        <p>Certificate ID: <span th:text="${certificateId}">UUID</span></p>
+        <p>Certificate Number: <span th:text="${certificateNumber}">CERT-001</span></p>
+    </div>
+</body>
+</html>

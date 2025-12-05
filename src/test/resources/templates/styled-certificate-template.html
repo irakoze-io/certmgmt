@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Professional Certificate</title>
+</head>
+<body>
+    <div class="certificate-container">
+        <div class="certificate-border">
+            <div class="certificate-content">
+                <h1 class="title">Professional Certificate</h1>
+                <p class="subtitle">This certifies that</p>
+                <h2 class="recipient-name" th:text="${recipient.name}">Recipient Name</h2>
+                <p class="course-info">has successfully completed</p>
+                <h3 class="course-name" th:text="${recipient.courseName}">Course Name</h3>
+                <div class="details">
+                    <p>Completion Date: <span th:text="${issuedAt}">Date</span></p>
+                    <p>Certificate Number: <span th:text="${certificateNumber}">Number</span></p>
+                    <p th:if="${metadata.instructor}">Instructor: <span th:text="${metadata.instructor}">Instructor</span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
