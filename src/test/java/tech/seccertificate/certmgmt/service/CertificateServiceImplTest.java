@@ -20,6 +20,7 @@ import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
 import tech.seccertificate.certmgmt.repository.CertificateRepository;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
 
+import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -28,6 +29,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,6 +50,12 @@ class CertificateServiceImplTest {
 
     @Mock
     private TenantSchemaValidator tenantSchemaValidator;
+
+    @Mock
+    private PdfGenerationService pdfGenerationService;
+
+    @Mock
+    private StorageService storageService;
 
     @InjectMocks
     private CertificateServiceImpl certificateService;
@@ -123,6 +131,14 @@ class CertificateServiceImplTest {
             return cert;
         });
         when(certificateHashRepository.save(any(CertificateHash.class))).thenReturn(new CertificateHash());
+        
+        // Mock PDF generation and storage
+        ByteArrayOutputStream pdfOutput = new ByteArrayOutputStream();
+        pdfOutput.writeBytes("PDF content".getBytes());
+        when(pdfGenerationService.generatePdf(any(TemplateVersion.class), any(Certificate.class)))
+                .thenReturn(pdfOutput);
+        when(storageService.getDefaultBucketName()).thenReturn("certificates");
+        doNothing().when(storageService).uploadFile(anyString(), anyString(), any(byte[].class), anyString());
 
         // Act
         Certificate result = certificateService.generateCertificate(validCertificate);
@@ -137,6 +153,8 @@ class CertificateServiceImplTest {
         );
         verify(certificateRepository, atLeastOnce()).save(any(Certificate.class));
         verify(tenantSchemaValidator).validateTenantSchema("generateCertificate");
+        verify(pdfGenerationService).generatePdf(any(TemplateVersion.class), any(Certificate.class));
+        verify(storageService).uploadFile(anyString(), anyString(), any(byte[].class), eq("application/pdf"));
     }
 
     @Test
@@ -157,6 +175,14 @@ class CertificateServiceImplTest {
             return cert;
         });
         when(certificateHashRepository.save(any(CertificateHash.class))).thenReturn(new CertificateHash());
+        
+        // Mock PDF generation and storage
+        ByteArrayOutputStream pdfOutput = new ByteArrayOutputStream();
+        pdfOutput.writeBytes("PDF content".getBytes());
+        when(pdfGenerationService.generatePdf(any(TemplateVersion.class), any(Certificate.class)))
+                .thenReturn(pdfOutput);
+        when(storageService.getDefaultBucketName()).thenReturn("certificates");
+        doNothing().when(storageService).uploadFile(anyString(), anyString(), any(byte[].class), anyString());
 
         // Act
         Certificate result = certificateService.generateCertificate(validCertificate);
@@ -274,6 +300,14 @@ class CertificateServiceImplTest {
             return cert;
         });
         when(certificateHashRepository.save(any(CertificateHash.class))).thenReturn(new CertificateHash());
+        
+        // Mock PDF generation and storage
+        ByteArrayOutputStream pdfOutput = new ByteArrayOutputStream();
+        pdfOutput.writeBytes("PDF content".getBytes());
+        when(pdfGenerationService.generatePdf(any(TemplateVersion.class), any(Certificate.class)))
+                .thenReturn(pdfOutput);
+        when(storageService.getDefaultBucketName()).thenReturn("certificates");
+        doNothing().when(storageService).uploadFile(anyString(), anyString(), any(byte[].class), anyString());
 
         // Act
         List<Certificate> results = certificateService.generateCertificatesBatch(List.of(cert1, cert2));
@@ -735,18 +769,47 @@ class CertificateServiceImplTest {
     // ==================== getCertificateDownloadUrl Tests ====================
 
     @Test
-    @DisplayName("Should throw exception when storage service not implemented")
-    void getCertificateDownloadUrl_NotImplemented_ThrowsException() {
+    @DisplayName("Should generate signed download URL for certificate")
+    void getCertificateDownloadUrl_ValidCertificate_ReturnsSignedUrl() {
         // Arrange
         validCertificate.setId(certificateId);
         validCertificate.setStoragePath("/path/to/cert.pdf");
+        String expectedUrl = "http://minio:9000/certificates/path/to/cert.pdf?signature=xyz";
+        
         doNothing().when(tenantSchemaValidator).validateTenantSchema(anyString());
         when(certificateRepository.findById(certificateId)).thenReturn(Optional.of(validCertificate));
+        when(storageService.getDefaultBucketName()).thenReturn("certificates");
+        when(storageService.generateSignedUrl("certificates", "/path/to/cert.pdf", 60))
+                .thenReturn(expectedUrl);
 
-        // Act & Assert
-        assertThatThrownBy(() -> certificateService.getCertificateDownloadUrl(certificateId, 60))
-                .isInstanceOf(UnsupportedOperationException.class)
-                .hasMessageContaining("not yet implemented");
+        // Act
+        String result = certificateService.getCertificateDownloadUrl(certificateId, 60);
+
+        // Assert
+        assertThat(result).isEqualTo(expectedUrl);
+        verify(storageService).generateSignedUrl("certificates", "/path/to/cert.pdf", 60);
+    }
+
+    @Test
+    @DisplayName("Should use default expiration when null provided")
+    void getCertificateDownloadUrl_NullExpiration_UsesDefault() {
+        // Arrange
+        validCertificate.setId(certificateId);
+        validCertificate.setStoragePath("/path/to/cert.pdf");
+        String expectedUrl = "http://minio:9000/certificates/path/to/cert.pdf?signature=xyz";
+        
+        doNothing().when(tenantSchemaValidator).validateTenantSchema(anyString());
+        when(certificateRepository.findById(certificateId)).thenReturn(Optional.of(validCertificate));
+        when(storageService.getDefaultBucketName()).thenReturn("certificates");
+        when(storageService.generateSignedUrl("certificates", "/path/to/cert.pdf", 60))
+                .thenReturn(expectedUrl);
+
+        // Act
+        String result = certificateService.getCertificateDownloadUrl(certificateId, null);
+
+        // Assert
+        assertThat(result).isEqualTo(expectedUrl);
+        verify(storageService).generateSignedUrl("certificates", "/path/to/cert.pdf", 60);
     }
 
     @Test

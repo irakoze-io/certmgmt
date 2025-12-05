@@ -12,6 +12,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import tech.seccertificate.certmgmt.config.TenantSchemaValidator;
 import tech.seccertificate.certmgmt.entity.Template;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
+import tech.seccertificate.certmgmt.exception.TemplateNotFoundException;
 import tech.seccertificate.certmgmt.repository.TemplateRepository;
 import tech.seccertificate.certmgmt.repository.TemplateVersionRepository;
 
@@ -330,8 +331,8 @@ class TemplateServiceImplTest {
 
         // Act & Assert
         assertThatThrownBy(() -> templateService.updateTemplate(validTemplate))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Template not found");
+                .isInstanceOf(TemplateNotFoundException.class)
+                .hasMessageContaining("was not found");
     }
 
     @Test
