@@ -14,15 +14,11 @@ import tech.seccertificate.certmgmt.exception.CustomerNotFoundException;
 import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
 import tech.seccertificate.certmgmt.repository.CertificateRepository;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
-import tech.seccertificate.certmgmt.service.CustomerService;
 
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Base64;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Implementation of CertificateService.
@@ -671,7 +667,7 @@ public class CertificateServiceImpl implements CertificateService {
     public String getQrCodeVerificationUrl(UUID certificateId) {
         tenantSchemaValidator.validateTenantSchema("getQrCodeVerificationUrl");
 
-        var certificate = certificateRepository.findById(certificateId)
+        certificateRepository.findById(certificateId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Certificate not found with ID: " + certificateId
                 ));
@@ -853,7 +849,7 @@ public class CertificateServiceImpl implements CertificateService {
      */
     private boolean constantTimeEquals(String a, String b) {
         if (a == null || b == null) {
-            return a == b;
+            return Objects.equals(a, b);
         }
         if (a.length() != b.length()) {
             return false;

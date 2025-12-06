@@ -13,12 +13,10 @@ import tech.seccertificate.certmgmt.entity.Certificate;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
 import tech.seccertificate.certmgmt.exception.PdfGenerationException;
 import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
-import tech.seccertificate.certmgmt.service.QrCodeService;
 
 import jakarta.annotation.PostConstruct;
 
 import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.StringWriter;
 import java.time.LocalDateTime;
