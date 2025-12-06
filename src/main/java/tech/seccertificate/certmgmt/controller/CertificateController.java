@@ -15,6 +15,7 @@ import tech.seccertificate.certmgmt.dto.certificate.GenerateCertificateRequest;
 import tech.seccertificate.certmgmt.entity.Certificate;
 import tech.seccertificate.certmgmt.exception.ApplicationObjectNotFoundException;
 import tech.seccertificate.certmgmt.service.CertificateService;
+import tech.seccertificate.certmgmt.service.QrCodeService;
 
 import java.net.URI;
 import java.util.List;
@@ -48,6 +49,7 @@ import java.util.UUID;
 public class CertificateController {
 
     private final CertificateService certificateService;
+    private final QrCodeService qrCodeService;
     private final ObjectMapper objectMapper;
 
     /**
@@ -293,6 +295,42 @@ public class CertificateController {
     }
 
     /**
+     * Get QR code image for certificate verification.
+     * Returns a PNG image containing QR code with verification URL.
+     * 
+     * @param id The certificate ID
+     * @return QR code PNG image
+     */
+    @GetMapping("/{id}/qr-code")
+    public ResponseEntity<byte[]> getQrCodeImage(@PathVariable @NotNull UUID id) {
+        log.debug("Generating QR code for certificate: {}", id);
+        
+        var certificate = certificateService.findById(id)
+                .orElseThrow(() -> new ApplicationObjectNotFoundException("Certificate with ID " + id + " not found"));
+        
+        if (certificate.getStatus() != Certificate.CertificateStatus.ISSUED) {
+            throw new ApplicationObjectNotFoundException("Certificate is not issued yet");
+        }
+        
+        String verificationUrl = certificateService.getQrCodeVerificationUrl(id);
+        var qrCodeImage = qrCodeService.generateQrCode(verificationUrl);
+        
+        try {
+            var baos = new java.io.ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(qrCodeImage, "PNG", baos);
+            byte[] imageBytes = baos.toByteArray();
+            
+            return ResponseEntity.ok()
+                    .contentType(org.springframework.http.MediaType.IMAGE_PNG)
+                    .contentLength(imageBytes.length)
+                    .body(imageBytes);
+        } catch (java.io.IOException e) {
+            log.error("Failed to convert QR code to bytes for certificate {}", id, e);
+            throw new RuntimeException("Failed to generate QR code image", e);
+        }
+    }
+
+    /**
      * Map GenerateCertificateRequest to Certificate entity.
      */
     private Certificate mapToEntity(GenerateCertificateRequest request) {
@@ -393,7 +431,7 @@ public class CertificateController {
             }
         }
         
-        return CertificateResponse.builder()
+        var response = CertificateResponse.builder()
                 .id(certificate.getId())
                 .customerId(certificate.getCustomerId())
                 .templateVersionId(certificate.getTemplateVersionId())
@@ -409,5 +447,19 @@ public class CertificateController {
                 .createdAt(certificate.getCreatedAt())
                 .updatedAt(certificate.getUpdatedAt())
                 .build();
+
+        // Add QR code URL if certificate is issued and has a hash
+        if (certificate.getStatus() == Certificate.CertificateStatus.ISSUED && 
+            certificate.getSignedHash() != null && !certificate.getSignedHash().isEmpty()) {
+            try {
+                String qrCodeUrl = certificateService.getQrCodeVerificationUrl(certificate.getId());
+                response.setQrCodeUrl(qrCodeUrl);
+            } catch (Exception e) {
+                log.warn("Failed to generate QR code URL for certificate {}: {}", 
+                        certificate.getId(), e.getMessage());
+            }
+        }
+
+        return response;
     }
 }

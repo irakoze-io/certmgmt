@@ -3,6 +3,7 @@ package tech.seccertificate.certmgmt.repository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.TypedQuery;
+import lombok.extern.slf4j.Slf4j;
 import org.hibernate.Session;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,6 +13,7 @@ import tech.seccertificate.certmgmt.entity.CertificateHash;
 import java.util.Optional;
 import java.util.UUID;
 
+@Slf4j
 @Repository
 public class CertificateHashRepositoryImpl implements CertificateHashRepositoryCustom {
 
@@ -43,6 +45,23 @@ public class CertificateHashRepositoryImpl implements CertificateHashRepositoryC
             CertificateHash certificateHash = query.getSingleResult();
             return Optional.of(certificateHash);
         } catch (jakarta.persistence.NoResultException e) {
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<CertificateHash> findByHashValueInSchema(String tenantSchema, String hashValue) {
+        setTenantSchema(tenantSchema);
+        var jpql = "SELECT ch FROM CertificateHash ch WHERE ch.hashValue = :hashValue";
+        var query = entityManager.createQuery(jpql, CertificateHash.class);
+        query.setParameter("hashValue", hashValue);
+
+        try {
+            var certificateHash = query.getSingleResult();
+            return Optional.of(certificateHash);
+        } catch (jakarta.persistence.NoResultException e) {
+            log.error("Failed to load certificate hash for hash value {}", hashValue, e);
             return Optional.empty();
         }
     }

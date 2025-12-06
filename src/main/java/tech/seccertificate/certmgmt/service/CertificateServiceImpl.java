@@ -14,6 +14,7 @@ import tech.seccertificate.certmgmt.exception.CustomerNotFoundException;
 import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
 import tech.seccertificate.certmgmt.repository.CertificateRepository;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
+import tech.seccertificate.certmgmt.service.CustomerService;
 
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
@@ -41,6 +42,7 @@ public class CertificateServiceImpl implements CertificateService {
     private final CertificateRepository certificateRepository;
     private final CertificateHashRepository certificateHashRepository;
     private final CustomerRepository customerRepository;
+    private final CustomerService customerService;
     private final TemplateService templateService;
     private final TenantSchemaValidator tenantSchemaValidator;
     private final PdfGenerationService pdfGenerationService;
@@ -540,30 +542,89 @@ public class CertificateServiceImpl implements CertificateService {
             return false;
         }
 
-        // TODO: Implement hash verification
-        // 1. Retrieve PDF from storage
-        // 2. Compute hash of PDF content
-        // 3. Compare with stored hash
-        // 4. Verify signature if signed hash exists
+        // Verify hash matches PDF content
+        try {
+            // Does the storage path exist?
+            if (certificate.getStoragePath() == null || certificate.getStoragePath().isEmpty()) {
+                log.warn("Certificate {} verification failed: no storage path", certificateId);
+                return false;
+            }
 
-        // For now, return true if hash exists
-        return true;
+            var bucketName = storageService.getDefaultBucketName();
+            if (!storageService.fileExists(bucketName, certificate.getStoragePath())) {
+                log.warn("Certificate {} verification failed: PDF not found in storage at {}", 
+                        certificateId, certificate.getStoragePath());
+                return false;
+            }
+
+            try (var pdfInputStream = storageService.downloadFile(bucketName, certificate.getStoragePath())) {
+                var pdfBytes = pdfInputStream.readAllBytes();
+
+                var computedHash = generateHashFromPdfContent(pdfBytes);
+
+                var storedHash = certificateHash.get().getHashValue();
+                var hashMatches = constantTimeEquals(computedHash, storedHash);
+
+                if (!hashMatches) {
+                    log.warn("Certificate {} verification failed: hash mismatch. Stored: {}, Computed: {}", 
+                            certificateId, storedHash.substring(0, Math.min(20, storedHash.length())), 
+                            computedHash.substring(0, Math.min(20, computedHash.length())));
+                    return false;
+                }
+
+                log.info("Certificate {} verification successful: hash matches", certificateId);
+                return true;
+            }
+        } catch (Exception e) {
+            log.error("Certificate {} verification failed due to error: {}", certificateId, e.getMessage(), e);
+            return false;
+        }
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<Certificate> verifyCertificateByHash(String hash) {
         // This is a public endpoint, so we don't validate tenant schema
-        // However, we still need to search across all tenants
+        // Search across all tenant schemas to find the certificate with matching hash
         
-        // TODO: Implement hash lookup across all tenant schemas
-        // For now, we need to search by hash value
-        // Since CertificateHash doesn't have a direct findByHashValue, we'll need to:
-        // 1. Search across all tenant schemas (requires custom implementation)
-        // 2. Or use a different approach (e.g., store hash in certificate entity)
+        if (hash == null || hash.trim().isEmpty()) {
+            log.warn("Hash verification failed: hash is null or empty");
+            return Optional.empty();
+        }
+
+        // Get all active customers to search their tenant schemas
+        var customers = customerService.findActiveCustomers();
         
-        // For now, return empty - this needs proper implementation with cross-tenant search
-        log.warn("Hash verification not fully implemented - requires cross-tenant search");
+        log.debug("Searching for certificate with hash across {} tenant schemas", customers.size());
+        
+        // Search each tenant schema for the hash
+        for (var customer : customers) {
+            try {
+                var tenantSchema = customer.getTenantSchema();
+                var certificateHashOpt = certificateHashRepository
+                        .findByHashValueInSchema(tenantSchema, hash);
+                
+                if (certificateHashOpt.isPresent()) {
+                    var certificateHash = certificateHashOpt.get();
+                    var certificate = certificateHash.getCertificate();
+                    
+                    // Verify certificate is issued and valid
+                    if (certificate.getStatus() == Certificate.CertificateStatus.ISSUED) {
+                        log.info("Certificate found with hash in tenant schema: {}", tenantSchema);
+                        return Optional.of(certificate);
+                    } else {
+                        log.debug("Certificate found but not issued (status: {}) in schema: {}", 
+                                certificate.getStatus(), tenantSchema);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error searching tenant schema {} for hash: {}", 
+                        customer.getTenantSchema(), e.getMessage());
+                // Continue searching other schemas
+            }
+        }
+        
+        log.debug("No certificate found with hash: {}", hash.substring(0, Math.min(20, hash.length())));
         return Optional.empty();
     }
 
@@ -603,6 +664,45 @@ public class CertificateServiceImpl implements CertificateService {
                 certificate.getStoragePath(),
                 expiration
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String getQrCodeVerificationUrl(UUID certificateId) {
+        tenantSchemaValidator.validateTenantSchema("getQrCodeVerificationUrl");
+
+        var certificate = certificateRepository.findById(certificateId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Certificate not found with ID: " + certificateId
+                ));
+
+        var certificateHash = certificateHashRepository.findByCertificateId(certificateId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Certificate hash not found for certificate ID: " + certificateId
+                ));
+
+        // Build verification URL: /api/certificates/verify/{hash}
+        String hash = certificateHash.getHashValue();
+        String baseUrl = getBaseUrl();
+        return baseUrl + "/api/certificates/verify/" + hash;
+    }
+
+    /**
+     * Get base URL for generating verification URLs.
+     * Uses configuration property or defaults to localhost:8080.
+     */
+    private String getBaseUrl() {
+        // Try to get from environment or configuration
+        // For prototype, default to localhost:8080
+        String baseUrl = System.getenv("APP_BASE_URL");
+        if (baseUrl == null || baseUrl.isEmpty()) {
+            baseUrl = System.getProperty("app.base-url");
+        }
+        if (baseUrl == null || baseUrl.isEmpty()) {
+            baseUrl = "http://localhost:8080";
+        }
+        // Remove trailing slash if present
+        return baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
     }
 
     // Helper methods
@@ -737,5 +837,26 @@ public class CertificateServiceImpl implements CertificateService {
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 algorithm not available", e);
         }
+    }
+
+    /**
+     * Constant-time string comparison to prevent timing attacks.
+     * 
+     * @param a First string
+     * @param b Second string
+     * @return true if strings are equal, false otherwise
+     */
+    private boolean constantTimeEquals(String a, String b) {
+        if (a == null || b == null) {
+            return a == b;
+        }
+        if (a.length() != b.length()) {
+            return false;
+        }
+        int result = 0;
+        for (int i = 0; i < a.length(); i++) {
+            result |= a.charAt(i) ^ b.charAt(i);
+        }
+        return result == 0;
     }
 }
