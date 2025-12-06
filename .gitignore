@@ -54,3 +54,4 @@ postgres-data/
 /INTEGRATION_TESTS_PROGRESS.md
 /TESTCONTAINERS_SETUP.md
 /E2E_TEST_COVERAGE.md
+/minio-data/

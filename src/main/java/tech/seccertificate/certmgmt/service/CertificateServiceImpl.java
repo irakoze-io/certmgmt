@@ -45,9 +45,7 @@ public class CertificateServiceImpl implements CertificateService {
     private final TenantSchemaValidator tenantSchemaValidator;
     private final PdfGenerationService pdfGenerationService;
     private final StorageService storageService;
-    
-    // TODO: Inject message queue service (RabbitMQ) when implemented
-    // private final MessageQueueService messageQueueService;
+    private final MessageQueueService messageQueueService;
 
     @Override
     @Transactional
@@ -167,8 +165,11 @@ public class CertificateServiceImpl implements CertificateService {
             var savedCertificate = certificateRepository.save(certificate);
             log.info("Certificate queued for async processing with ID: {}", savedCertificate.getId());
 
-            // TODO: Send message to RabbitMQ queue for async processing
-            // messageQueueService.sendCertificateGenerationMessage(savedCertificate.getId());
+            // Send message to RabbitMQ queue for async processing
+            messageQueueService.sendCertificateGenerationMessage(
+                    savedCertificate.getId(),
+                    TenantContext.getTenantSchema()
+            );
 
             return savedCertificate;
         } catch (DataIntegrityViolationException e) {
