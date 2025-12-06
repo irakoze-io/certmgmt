@@ -128,13 +128,11 @@ public class CertificateServiceImpl implements CertificateService {
         tenantSchemaValidator.validateTenantSchema("generateCertificateAsync");
         validateCertificate(certificate);
 
-        // Set customer ID from tenant context if not provided
         if (certificate.getCustomerId() == null) {
             var customerId = getCustomerIdFromTenantContext();
             certificate.setCustomerId(customerId);
         }
 
-        // Generate certificate number if not provided
         if (certificate.getCertificateNumber() == null || certificate.getCertificateNumber().isEmpty()) {
             var templateVersion = getTemplateVersion(certificate.getTemplateVersionId());
             var template = templateService.findById(templateVersion.getTemplate().getId())
@@ -142,14 +140,12 @@ public class CertificateServiceImpl implements CertificateService {
             certificate.setCertificateNumber(generateCertificateNumber(template.getCode()));
         }
 
-        // Validate certificate number uniqueness
         if (isCertificateNumberTaken(certificate.getCertificateNumber())) {
             throw new IllegalArgumentException(
                     "Certificate number is already in use: " + certificate.getCertificateNumber()
             );
         }
 
-        // Set defaults
         certificate.setStatus(Certificate.CertificateStatus.PENDING);
         if (certificate.getIssuedAt() == null) {
             certificate.setIssuedAt(LocalDateTime.now());
@@ -158,14 +154,13 @@ public class CertificateServiceImpl implements CertificateService {
             throw new IllegalArgumentException("Recipient data is required");
         }
 
-        // Validate customer limits
         validateCustomerLimits(certificate.getCustomerId());
 
         try {
             var savedCertificate = certificateRepository.save(certificate);
             log.info("Certificate queued for async processing with ID: {}", savedCertificate.getId());
 
-            // Send message to RabbitMQ queue for async processing
+            // Send message to PDF generation queue
             messageQueueService.sendCertificateGenerationMessage(
                     savedCertificate.getId(),
                     TenantContext.getTenantSchema()

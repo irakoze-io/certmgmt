@@ -60,7 +60,6 @@ import static org.awaitility.Awaitility.await;
 @ActiveProfiles("test")
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@Disabled("RabbitMQ @RabbitListener not starting in test context - requires additional configuration")
 class AsyncCertificateGenerationIntegrationTest {
 
     @Container
@@ -138,10 +137,12 @@ class AsyncCertificateGenerationIntegrationTest {
     void setUp(TestInfo testInfo) {
         log.info("Setting up test environment");
 
-        // Create test customer with unique schema for each test
+        // Create test customer with unique schema and domain for each test
         var testMethod = testInfo.getTestMethod().orElseThrow().getName();
-        var uniqueSchema = "asynctest_" + System.currentTimeMillis() + "_" + Math.abs(testMethod.hashCode());
-        testCustomer = createTestCustomer("Async Test Corp", "asynctest.com", uniqueSchema);
+        var uniqueId = System.currentTimeMillis() + "-" + Math.abs(testMethod.hashCode());
+        var uniqueSchema = "asynctest_" + uniqueId.replace("-", "_");
+        var uniqueDomain = "asynctest-" + uniqueId + ".com";
+        testCustomer = createTestCustomer("Async Test Corp", uniqueDomain, uniqueSchema);
 
         // Set tenant context
         tenantService.setTenantContext(testCustomer.getTenantSchema());
