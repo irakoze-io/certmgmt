@@ -7,12 +7,10 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
-import tech.seccertificate.certmgmt.config.TenantContext;
+import org.springframework.transaction.support.TransactionTemplate;
 import tech.seccertificate.certmgmt.dto.message.CertificateGenerationMessage;
 import tech.seccertificate.certmgmt.entity.Certificate;
 import tech.seccertificate.certmgmt.entity.CertificateHash;
-import tech.seccertificate.certmgmt.exception.PdfGenerationException;
 import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
 
 import java.io.ByteArrayOutputStream;
@@ -33,23 +31,46 @@ public class CertificateGenerationWorker {
     private final TenantService tenantService;
     private final TemplateService templateService;
     private final CertificateHashRepository certificateHashRepository;
+    private final TransactionTemplate transactionTemplate;
 
     @RabbitListener(queues = CERTIFICATE_GENERATION_QUEUE)
-    @Transactional
     public void processCertificateGeneration(
             CertificateGenerationMessage message,
             Channel channel,
             @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) {
-        
+
         var certificateId = message.getCertificateId();
         var tenantSchema = message.getTenantSchema();
-        
-        log.info("Processing certificate generation: certificateId={}, tenantSchema={}", 
+
+        log.info("Processing certificate generation: certificateId={}, tenantSchema={}",
                 certificateId, tenantSchema);
+        // Here Debug #11: Setting tenant context for the current thread before the transaction starts
+        tenantService.setTenantContext(tenantSchema);
 
         try {
-            tenantService.setTenantContext(tenantSchema);
-            
+            // Using TransactionTemplate - transaction starts AFTER the setTenantContext call above
+            transactionTemplate.executeWithoutResult(_ -> {
+                try {
+                    processCertificate(certificateId, tenantSchema, channel, deliveryTag);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        } catch (Exception e) {
+            log.error("Transaction failed for certificate {}: {}", certificateId, e.getCause() != null ? e.getCause().getMessage() : e.getMessage(), e);
+            handleFailure(certificateId, tenantSchema, e.getCause() != null ? e.getCause().getMessage() : e.getMessage(), channel, deliveryTag);
+        } finally {
+            tenantService.clearTenantContext();
+        }
+    }
+
+    private void processCertificate(
+            java.util.UUID certificateId,
+            String tenantSchema,
+            Channel channel,
+            long deliveryTag) throws Exception {
+
+        try {
             var certificate = certificateService.findById(certificateId)
                     .orElseThrow(() -> new IllegalArgumentException(
                             "Certificate not found: " + certificateId));
@@ -62,9 +83,9 @@ public class CertificateGenerationWorker {
 
             if (certificate.getStatus() == Certificate.CertificateStatus.FAILED) {
                 log.info("Retrying failed certificate {}: resetting to PROCESSING", certificateId);
-            } else if (certificate.getStatus() != Certificate.CertificateStatus.PENDING && 
-                       certificate.getStatus() != Certificate.CertificateStatus.PROCESSING) {
-                log.warn("Certificate {} is in invalid status for processing (current: {}), skipping", 
+            } else if (certificate.getStatus() != Certificate.CertificateStatus.PENDING &&
+                    certificate.getStatus() != Certificate.CertificateStatus.PROCESSING) {
+                log.warn("Certificate {} is in invalid status for processing (current: {}), skipping",
                         certificateId, certificate.getStatus());
                 channel.basicAck(deliveryTag, false);
                 return;
@@ -73,16 +94,16 @@ public class CertificateGenerationWorker {
             if (certificate.getStatus() != Certificate.CertificateStatus.PROCESSING) {
                 certificateService.markAsProcessing(certificateId);
             }
-            
+
             var templateVersion = templateService.findVersionById(certificate.getTemplateVersionId())
                     .orElseThrow(() -> new IllegalArgumentException(
                             "Template version not found: " + certificate.getTemplateVersionId()));
 
             var pdfBytes = pdfGenerationService.generatePdf(templateVersion, certificate);
-            
+
             var storagePath = buildStoragePath(tenantSchema, certificateId);
             var bucketName = storageService.getDefaultBucketName();
-            
+
             storageService.ensureBucketExists(bucketName);
             storageService.uploadFile(
                     bucketName,
@@ -92,7 +113,7 @@ public class CertificateGenerationWorker {
             );
 
             var hashValue = generateHashForPdf(pdfBytes);
-            
+
             certificate.setStoragePath(storagePath);
             certificate.setSignedHash(hashValue);
             var updatedCertificate = certificateService.updateCertificate(certificate);
@@ -101,22 +122,18 @@ public class CertificateGenerationWorker {
                     .hashAlgorithm("SHA-256")
                     .hashValue(hashValue)
                     .build();
-            
+
             certificateHashRepository.save(certificateHash);
-            
+
             certificateService.markAsIssued(certificateId, null);
-            
+
             log.info("Certificate generation completed successfully: certificateId={}", certificateId);
             channel.basicAck(deliveryTag, false);
-            
-        } catch (PdfGenerationException e) {
-            log.error("PDF generation failed for certificate {}: {}", certificateId, e.getMessage(), e);
-            handleFailure(certificateId, tenantSchema, e.getMessage(), channel, deliveryTag);
+
         } catch (Exception e) {
-            log.error("Certificate generation failed for certificate {}: {}", certificateId, e.getMessage(), e);
-            handleFailure(certificateId, tenantSchema, e.getMessage(), channel, deliveryTag);
-        } finally {
-            tenantService.clearTenantContext();
+            log.error("Certificate generation failed for certificate {}: {}", certificateId, e.getMessage());
+            // Re-throw to trigger transaction rollback, error handled in outer catch
+            throw e;
         }
     }
 
@@ -139,10 +156,13 @@ public class CertificateGenerationWorker {
         }
     }
 
-    private void handleFailure(java.util.UUID certificateId, String tenantSchema, String errorMessage, 
+    private void handleFailure(java.util.UUID certificateId, String tenantSchema, String errorMessage,
                                com.rabbitmq.client.Channel channel, long deliveryTag) {
         try {
-            tenantService.setTenantContext(tenantSchema);
+            // Tenant context should already be set, but ensure it's set for safety
+            if (!tenantSchema.equals(tenantService.getCurrentTenantSchema())) {
+                tenantService.setTenantContext(tenantSchema);
+            }
             certificateService.markAsFailed(certificateId, errorMessage);
             channel.basicAck(deliveryTag, false);
         } catch (Exception e) {

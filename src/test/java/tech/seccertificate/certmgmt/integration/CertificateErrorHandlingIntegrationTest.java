@@ -54,7 +54,6 @@ import static org.awaitility.Awaitility.await;
 @ActiveProfiles("test")
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@Disabled("RabbitMQ @RabbitListener not starting in test context - requires additional configuration")
 class CertificateErrorHandlingIntegrationTest {
 
     @Container
@@ -122,8 +121,10 @@ class CertificateErrorHandlingIntegrationTest {
         log.info("Setting up test environment for error handling tests");
 
         var testMethod = testInfo.getTestMethod().orElseThrow().getName();
-        var uniqueSchema = "errortest_" + System.currentTimeMillis() + "_" + Math.abs(testMethod.hashCode());
-        testCustomer = createTestCustomer("Error Test Corp", "errortest.com", uniqueSchema);
+        var uniqueId = System.currentTimeMillis() + "-" + Math.abs(testMethod.hashCode());
+        var uniqueSchema = "errortest_" + uniqueId.replace("-", "_");
+        var uniqueDomain = "errortest-" + uniqueId + ".com";
+        testCustomer = createTestCustomer("Error Test Corp", uniqueDomain, uniqueSchema);
         tenantService.setTenantContext(testCustomer.getTenantSchema());
         testTemplateVersion = createTestTemplateVersion();
 
