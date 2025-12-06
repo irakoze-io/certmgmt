@@ -1,18 +1,19 @@
 package tech.seccertificate.certmgmt.config;
 
-import org.hibernate.cfg.AvailableSettings;
+import lombok.extern.slf4j.Slf4j;
 import org.hibernate.context.spi.CurrentTenantIdentifierResolver;
-import org.springframework.stereotype.Component;
+
+import jakarta.annotation.PostConstruct;
 
 /**
  * Resolves the current tenant identifier from TenantContext.
  * This is used by Hibernate to determine which schema to use for database operations.
  *
  * @author Ivan-Beaudry Irakoze
- * @Project AuthHub
- * @since Oct 5, 2024
+ * @since Dec 4, 2024
  */
-@Component
+@Slf4j
+// Note: Bean is created in MultiTenantConfig, not via @Component
 public class TenantIdentifierResolver implements CurrentTenantIdentifierResolver {
 
     /**
@@ -20,16 +21,24 @@ public class TenantIdentifierResolver implements CurrentTenantIdentifierResolver
      */
     private static final String DEFAULT_TENANT_IDENTIFIER = "public";
 
+    @PostConstruct
+    public void init() {
+        log.debug("TenantIdentifierResolver initialized");
+    }
+
     @Override
     public String resolveCurrentTenantIdentifier() {
         String tenantSchema = TenantContext.getTenantSchema();
+        log.debug("TenantIdentifierResolver.resolveCurrentTenantIdentifier() called. Current tenantSchema: {}", tenantSchema);
 
         // If no tenant is set, use default (public) schema
         // This allows operations on public schema tables (Customer, GlobalAuditLog)
         if (tenantSchema == null || tenantSchema.isEmpty()) {
+            log.debug("No tenant schema set in TenantContext, returning default: {}", DEFAULT_TENANT_IDENTIFIER);
             return DEFAULT_TENANT_IDENTIFIER;
         }
 
+        log.debug("Returning tenant schema: {}", tenantSchema);
         return tenantSchema;
     }
 

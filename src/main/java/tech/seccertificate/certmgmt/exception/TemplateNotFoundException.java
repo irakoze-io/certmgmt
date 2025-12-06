@@ -7,7 +7,11 @@ public class TemplateNotFoundException extends ApplicationObjectNotFoundExceptio
         super(template);
     }
 
-    public TemplateNotFoundException(Template template, String message) {
-        super(template, message);
+    public TemplateNotFoundException(Long templateId) {
+        super(Template.builder().id(templateId).build());
+    }
+
+    public TemplateNotFoundException(String message) {
+        super(message);
     }
 }

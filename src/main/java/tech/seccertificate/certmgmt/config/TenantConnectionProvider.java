@@ -1,9 +1,9 @@
 package tech.seccertificate.certmgmt.config;
 
+import lombok.extern.slf4j.Slf4j;
 import org.hibernate.engine.jdbc.connections.spi.AbstractDataSourceBasedMultiTenantConnectionProviderImpl;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
+import jakarta.annotation.PostConstruct;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -15,17 +15,21 @@ import java.sql.Statement;
  * before any database operations.
  *
  * @author Ivan-Beaudry Irakoze
- * @since Oct 5, 2024
- * @Project AuthHub
+ * @since Dec 4, 2024
  */
-@Component
+@Slf4j
+// Note: Bean is created in MultiTenantConfig, not via @Component
 public class TenantConnectionProvider extends AbstractDataSourceBasedMultiTenantConnectionProviderImpl {
 
     private final DataSource dataSource;
 
-    @Autowired
     public TenantConnectionProvider(DataSource dataSource) {
         this.dataSource = dataSource;
+    }
+
+    @PostConstruct
+    public void init() {
+        log.debug("TenantConnectionProvider initialized with DataSource: {}", dataSource.getClass().getName());
     }
 
     @Override
@@ -40,17 +44,23 @@ public class TenantConnectionProvider extends AbstractDataSourceBasedMultiTenant
         return dataSource;
     }
 
-    public Connection getConnection(String tenantIdentifier) throws SQLException {
+    @Override
+    public Connection getConnection(Object tenantIdentifier) throws SQLException {
+        String tenantId = tenantIdentifier != null ? tenantIdentifier.toString() : "public";
+        log.debug("TenantConnectionProvider.getConnection() called with tenantIdentifier: {}", tenantId);
         Connection connection = super.getConnection(tenantIdentifier);
 
         // Set the search_path for PostgreSQL to use the tenant schema
         // This ensures all queries use the correct schema
-        setSchema(connection, tenantIdentifier);
+        setSchema(connection, tenantId);
+        log.debug("Schema search_path set to: {} for connection", tenantId);
 
         return connection;
     }
 
-    public void releaseConnection(String tenantIdentifier, Connection connection) throws SQLException {
+    @Override
+    public void releaseConnection(Object tenantIdentifier, Connection connection) throws SQLException {
+        log.debug("TenantConnectionProvider.releaseConnection() called for tenantIdentifier: {}", tenantIdentifier);
         // Reset search_path to default before releasing connection
         // This prevents schema leakage between tenants
         try {

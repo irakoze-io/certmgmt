@@ -20,7 +20,7 @@ import java.util.UUID;
  * Implementation of TemplateService.
  * Handles template CRUD operations, template versioning, and version validation.
  *
- * <p>All operations require tenant context to be set (via TenantRequestInterceptor
+ * <p>All operations require tenant context to be set (via TenantResolutionFilter
  * or programmatically using TenantService).
  */
 @Slf4j
