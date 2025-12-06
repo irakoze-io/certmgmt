@@ -30,7 +30,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("test")
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-@Disabled("Tests pass individually but need configuration for batch execution - timing/state issues")
 class CertificateStatusTransitionIntegrationTest {
 
     @Container
@@ -92,8 +91,10 @@ class CertificateStatusTransitionIntegrationTest {
         log.info("Setting up test environment for status transition tests");
 
         var testMethod = testInfo.getTestMethod().orElseThrow().getName();
-        var uniqueSchema = "statustest_" + System.currentTimeMillis() + "_" + Math.abs(testMethod.hashCode());
-        testCustomer = createTestCustomer("Status Test Corp", "statustest.com", uniqueSchema);
+        var uniqueId = System.currentTimeMillis() + "-" + Math.abs(testMethod.hashCode());
+        var uniqueSchema = "statustest_" + uniqueId.replace("-", "_");
+        var uniqueDomain = "statustest-" + uniqueId + ".com";
+        testCustomer = createTestCustomer("Status Test Corp", uniqueDomain, uniqueSchema);
         tenantService.setTenantContext(testCustomer.getTenantSchema());
         testTemplateVersion = createTestTemplateVersion();
 

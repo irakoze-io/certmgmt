@@ -41,6 +41,7 @@ build/
 postgres-data/
 
 *.sh
+logback-spring.xml
 .cursor/
 /CLAUDE.md
 /Certificate_Management_API.postman_collection.json
@@ -49,11 +50,14 @@ postgres-data/
 /POSTMAN_COLLECTION_README.md
 /Tenant_Schema_Switching_Guide.md
 /docs/
+/logs/
 /qodana.yaml
 /src/main/java/tech/seccertificate/certmgmt/config/README_TENANT_SCHEMA_SWITCHING.md
 /INTEGRATION_TESTS_PROGRESS.md
 /TESTCONTAINERS_SETUP.md
 /E2E_TEST_COVERAGE.md
+/RABBITMQ_FIX_DOCUMENTATION.md
+/rabbitmq_bug_fix_work.md
 /minio-data/
 *.DS_Store
 .DS_Store
