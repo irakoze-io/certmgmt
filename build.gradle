@@ -76,8 +76,6 @@ dependencies {
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
-    testCompileOnly 'org.projectlombok:lombok'
-    testAnnotationProcessor 'org.projectlombok:lombok'
 
     // Development Tools
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
@@ -96,7 +94,7 @@ dependencies {
     testImplementation 'org.springframework.integration:spring-integration-test'
     testImplementation 'org.springframework.restdocs:spring-restdocs-mockmvc'
     testImplementation 'org.springframework.restdocs:spring-restdocs-asciidoctor'
-    
+
     // Testcontainers for integration testing
     // Using version 1.19.x which is compatible with Spring Boot 4.0.0
     testImplementation platform('org.testcontainers:testcontainers-bom:1.19.8')
@@ -113,14 +111,14 @@ tasks.named('test') {
     useJUnitPlatform()
     // Fail the build if tests fail
     failFast = false
-    
+
     // Show test output
     testLogging {
         events "passed", "skipped", "failed"
         exceptionFormat "full"
         showStandardStreams = false
     }
-    
+
     // Run tests in parallel for faster execution
     maxParallelForks = Runtime.runtime.availableProcessors().intdiv(2) ?: 1
 }
@@ -129,7 +127,7 @@ tasks.named('test') {
 tasks.named('bootRun') {
     // Uncomment the line below to always run tests before bootRun
     // dependsOn test
-    
+
     // Or use: ./gradlew bootRun -x test to skip tests for faster development
 }
 
