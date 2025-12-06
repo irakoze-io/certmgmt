@@ -258,7 +258,7 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getSuccess()).isFalse();
-        assertThat(response.getBody().getMessage()).isEqualTo("Resource not found: template_123");
+        assertThat(response.getBody().getMessage()).isEqualTo("The application could not find the requested resource");
         assertThat(response.getBody().getData()).isNull();
         assertThat(response.getBody().getError()).isNotNull();
         assertThat(response.getBody().getError().getErrorCode()).isEqualTo("RESOURCE_NOT_FOUND");

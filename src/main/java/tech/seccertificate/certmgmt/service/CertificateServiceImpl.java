@@ -36,23 +36,18 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CertificateServiceImpl implements CertificateService {
 
+    private static final String PDF_CONTENT_TYPE = "application/pdf";
+
     private final CertificateRepository certificateRepository;
     private final CertificateHashRepository certificateHashRepository;
     private final CustomerRepository customerRepository;
     private final TemplateService templateService;
     private final TenantSchemaValidator tenantSchemaValidator;
-
-    // TODO: Inject PDF generation service when implemented
-    // private final PdfGenerationService pdfGenerationService;
-    
-    // TODO: Inject storage service (S3/MinIO) when implemented
-    // private final StorageService storageService;
+    private final PdfGenerationService pdfGenerationService;
+    private final StorageService storageService;
     
     // TODO: Inject message queue service (RabbitMQ) when implemented
     // private final MessageQueueService messageQueueService;
-    
-    // TODO: Inject crypto service for hash signing when implemented
-    // private final CryptoService cryptoService;
 
     @Override
     @Transactional
@@ -605,12 +600,12 @@ public class CertificateServiceImpl implements CertificateService {
             );
         }
 
-        // TODO: Generate signed URL from S3/MinIO
-        // return storageService.generateSignedUrl(certificate.getStoragePath(), expirationMinutes);
-        
-        // For now, return placeholder
-        throw new UnsupportedOperationException(
-                "Signed URL generation not yet implemented. Storage service required."
+        // Generate signed URL from MinIO/S3
+        int expiration = expirationMinutes != null ? expirationMinutes : 60;
+        return storageService.generateSignedUrl(
+                storageService.getDefaultBucketName(),
+                certificate.getStoragePath(),
+                expiration
         );
     }
 
@@ -664,34 +659,38 @@ public class CertificateServiceImpl implements CertificateService {
 
     /**
      * Process certificate generation (synchronous path).
-     * TODO: Replace with actual PDF generation implementation.
+     * Generates PDF, uploads to storage, and creates hash record.
      */
     private void processCertificateGeneration(Certificate certificate) {
         log.info("Processing certificate generation for ID: {}", certificate.getId());
         
         try {
-            // TODO: Implement actual PDF generation
             // 1. Load template version
-            // 2. Render HTML with recipient data
-            // 3. Convert HTML to PDF
-            // 4. Upload PDF to S3/MinIO
-            // 5. Generate hash and sign
-            // 6. Update certificate status to ISSUED
+            var templateVersion = getTemplateVersion(certificate.getTemplateVersionId());
             
-            // Simulate processing
-            var storagePath = String.format("%s/certificates/%d/%02d/%s.pdf",
-                    TenantContext.getTenantSchema(),
-                    LocalDateTime.now().getYear(),
-                    LocalDateTime.now().getMonthValue(),
-                    certificate.getId());
+            // 2. Generate PDF using PdfGenerationService
+            log.debug("Generating PDF for certificate: {}", certificate.getId());
+            var pdfOutputStream = pdfGenerationService.generatePdf(templateVersion, certificate);
+            var pdfBytes = pdfOutputStream.toByteArray();
             
+            // 3. Generate storage path
+            var storagePath = generateStoragePath(certificate);
             certificate.setStoragePath(storagePath);
             
-            // Generate hash (simplified - should use actual PDF content)
-            var hashValue = generateHashForCertificate(certificate);
+            // 4. Upload PDF to MinIO/S3
+            log.debug("Uploading PDF to storage: {}", storagePath);
+            storageService.uploadFile(
+                    storageService.getDefaultBucketName(),
+                    storagePath,
+                    pdfBytes,
+                    PDF_CONTENT_TYPE
+            );
+            
+            // 5. Generate hash from actual PDF content
+            var hashValue = generateHashFromPdfContent(pdfBytes);
             certificate.setSignedHash(hashValue);
             
-            // Create certificate hash record
+            // 6. Create certificate hash record
             var certificateHash = CertificateHash.builder()
                     .certificate(certificate)
                     .hashAlgorithm("SHA-256")
@@ -700,11 +699,12 @@ public class CertificateServiceImpl implements CertificateService {
             
             certificateHashRepository.save(certificateHash);
             
-            // Mark as issued
+            // 7. Mark as issued
             certificate.setStatus(Certificate.CertificateStatus.ISSUED);
             certificateRepository.save(certificate);
             
-            log.info("Certificate generation completed for ID: {}", certificate.getId());
+            log.info("Certificate generation completed for ID: {}, storage path: {}", 
+                    certificate.getId(), storagePath);
         } catch (Exception e) {
             log.error("Failed to process certificate generation for ID: {}", certificate.getId(), e);
             // Use internal helper to avoid @Transactional self-invocation warning
@@ -714,20 +714,29 @@ public class CertificateServiceImpl implements CertificateService {
     }
 
     /**
-     * Generate hash for certificate (simplified implementation).
-     * TODO: Replace with actual hash generation from PDF content.
+     * Generate storage path for certificate PDF.
+     * Format: {tenant_schema}/certificates/{year}/{month}/{certificate_id}.pdf
      */
-    private String generateHashForCertificate(Certificate certificate) {
-        // Simplified hash generation - should hash actual PDF content
-        var content = String.format("%s-%s-%s-%s",
-                certificate.getId(),
-                certificate.getCertificateNumber(),
-                certificate.getTemplateVersionId(),
-                certificate.getRecipientData());
-        
+    private String generateStoragePath(Certificate certificate) {
+        var tenantSchema = TenantContext.getTenantSchema();
+        var now = LocalDateTime.now();
+        return String.format("%s/certificates/%d/%02d/%s.pdf",
+                tenantSchema != null ? tenantSchema : "default",
+                now.getYear(),
+                now.getMonthValue(),
+                certificate.getId());
+    }
+
+    /**
+     * Generate SHA-256 hash from actual PDF content.
+     * 
+     * @param pdfContent The PDF file content as byte array
+     * @return Base64-encoded SHA-256 hash
+     */
+    private String generateHashFromPdfContent(byte[] pdfContent) {
         try {
             var digest = MessageDigest.getInstance("SHA-256");
-            var hashBytes = digest.digest(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            var hashBytes = digest.digest(pdfContent);
             return Base64.getEncoder().encodeToString(hashBytes);
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 algorithm not available", e);

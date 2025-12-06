@@ -17,6 +17,7 @@ import tech.seccertificate.certmgmt.repository.CustomerRepository;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
@@ -41,6 +42,9 @@ class CustomerServiceImplTest {
 
     @Mock
     private PreparedStatement preparedStatement;
+
+    @Mock
+    private ResultSet resultSet;
 
     @InjectMocks
     private CustomerServiceImpl customerService;
@@ -77,6 +81,8 @@ class CustomerServiceImplTest {
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
         when(preparedStatement.execute()).thenReturn(true);
+        when(preparedStatement.getResultSet()).thenReturn(resultSet);
+        when(resultSet.next()).thenReturn(false);
 
         // Act
         Customer result = customerService.onboardCustomer(validCustomer);
@@ -109,6 +115,8 @@ class CustomerServiceImplTest {
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
         when(preparedStatement.execute()).thenReturn(true);
+        when(preparedStatement.getResultSet()).thenReturn(resultSet);
+        when(resultSet.next()).thenReturn(false);
 
         // Act
         Customer result = customerService.onboardCustomer(customerWithoutSchema);
@@ -138,6 +146,8 @@ class CustomerServiceImplTest {
         when(dataSource.getConnection()).thenReturn(connection);
         when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
         when(preparedStatement.execute()).thenReturn(true);
+        when(preparedStatement.getResultSet()).thenReturn(resultSet);
+        when(resultSet.next()).thenReturn(false);
 
         // Act
         Customer result = customerService.onboardCustomer(customerWithoutDefaults);

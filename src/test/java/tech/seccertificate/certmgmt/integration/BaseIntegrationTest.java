@@ -11,6 +11,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.WebApplicationContext;
+import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -19,19 +20,21 @@ import tech.seccertificate.certmgmt.config.TenantContext;
 import tech.seccertificate.certmgmt.entity.Customer;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
 import tech.seccertificate.certmgmt.service.CustomerService;
+import tech.seccertificate.certmgmt.service.StorageService;
 import tech.seccertificate.certmgmt.service.TenantService;
 
 /**
  * Base class for integration tests.
  * Provides common setup and utilities for testing REST controllers.
  *
- * <p>Uses Testcontainers to provide an isolated PostgreSQL database instance.
+ * <p>Uses Testcontainers to provide isolated PostgreSQL and MinIO instances.
  * This ensures:
  * <ul>
  *   <li>Fresh database for each test run</li>
  *   <li>All migrations run cleanly</li>
  *   <li>No schema conflicts or cleanup issues</li>
  *   <li>Complete test isolation</li>
+ *   <li>S3/MinIO storage for certificate PDFs</li>
  * </ul>
  */
 @SpringBootTest
@@ -54,14 +57,32 @@ public abstract class BaseIntegrationTest {
             .withReuse(true); // Reuse container across test runs for faster execution
 
     /**
-     * Dynamically configure Spring Boot properties with Testcontainers database connection.
+     * MinIO Testcontainer instance for S3-compatible storage.
+     * Shared across all tests in the same JVM for performance.
+     */
+    @Container
+    static final MinIOContainer minio = new MinIOContainer(
+            DockerImageName.parse("minio/minio:latest"))
+            .withUserName("minioadmin")
+            .withPassword("minioadmin")
+            .withReuse(true);
+
+    /**
+     * Dynamically configure Spring Boot properties with Testcontainers connections.
      * This overrides the properties in application-test.properties.
      */
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
+        // PostgreSQL properties
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        
+        // MinIO/S3 storage properties
+        registry.add("storage.minio.endpoint", minio::getS3URL);
+        registry.add("storage.minio.access-key", minio::getUserName);
+        registry.add("storage.minio.secret-key", minio::getPassword);
+        registry.add("storage.minio.bucket-name", () -> "certificates-test");
     }
 
     @Autowired
@@ -80,6 +101,9 @@ public abstract class BaseIntegrationTest {
 
     @Autowired
     protected TenantService tenantService;
+
+    @Autowired
+    protected StorageService storageService;
 
     /**
      * Initialize MockMvc before each test.
