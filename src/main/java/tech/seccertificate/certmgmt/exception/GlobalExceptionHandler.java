@@ -116,6 +116,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
 
+    /**
+     * Handle storage exceptions (MinIO/S3 errors).
+     */
+    @ExceptionHandler(StorageException.class)
+    public ResponseEntity<Response<Void>> handleStorageException(StorageException ex) {
+        log.error("Storage operation failed: {}", ex.getMessage(), ex);
+        var response = Response.<Void>error(
+                "Storage operation failed. Please try again later.",
+                "STORAGE_ERROR",
+                "System Error",
+                List.of(ex.getMessage())
+        );
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
+    }
+
     // ==================== Validation Errors ====================
 
     /**
