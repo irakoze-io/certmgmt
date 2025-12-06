@@ -1,7 +1,6 @@
 package tech.seccertificate.certmgmt.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.TestInfo;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -57,7 +56,6 @@ import static org.awaitility.Awaitility.await;
  * @see CertificateStatusTransitionIntegrationTest for active status transition tests
  * @see CertificateErrorHandlingIntegrationTest for active error handling tests
  */
-@Slf4j
 @SpringBootTest
 @ActiveProfiles("test")
 @Testcontainers
@@ -134,6 +132,7 @@ class AsyncCertificateGenerationIntegrationTest {
 
     private Customer testCustomer;
     private TemplateVersion testTemplateVersion;
+    private final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AsyncCertificateGenerationIntegrationTest.class);
 
     @BeforeEach
     void setUp(TestInfo testInfo) {

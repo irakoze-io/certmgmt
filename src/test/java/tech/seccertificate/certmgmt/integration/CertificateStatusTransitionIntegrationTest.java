@@ -1,6 +1,5 @@
 package tech.seccertificate.certmgmt.integration;
 
-import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.TestInfo;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,30 +25,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Integration tests for certificate status transition validation.
- *
- * <p><strong>NOTE: These tests are temporarily disabled for batch execution.</strong>
- *
- * <p>The tests pass individually but fail when run as a batch due to timing/state issues
- * with parallel test execution and tenant schema creation. This will be addressed in a
- * follow-up issue.
- *
- * <p>To run individual tests:
- * <pre>
- * ./gradlew test --tests "CertificateStatusTransitionIntegrationTest.shouldTransitionFromPendingToProcessing"
- * </pre>
- *
- * <p>Tests cover the valid status transitions as defined in the requirements:
- * <ul>
- *   <li>PENDING → PROCESSING, FAILED</li>
- *   <li>PROCESSING → ISSUED, FAILED</li>
- *   <li>ISSUED → REVOKED</li>
- *   <li>FAILED → PROCESSING (allows retry)</li>
- *   <li>REVOKED → (no transitions allowed)</li>
- * </ul>
- */
-@Slf4j
+
 @SpringBootTest
 @ActiveProfiles("test")
 @Testcontainers
@@ -109,6 +85,7 @@ class CertificateStatusTransitionIntegrationTest {
 
     private Customer testCustomer;
     private TemplateVersion testTemplateVersion;
+    private final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(CertificateStatusTransitionIntegrationTest.class);
 
     @BeforeEach
     void setUp(TestInfo testInfo) {
