@@ -764,38 +764,43 @@ public class CertificateServiceImpl implements CertificateService {
             // 1. Load template version
             var templateVersion = getTemplateVersion(certificate.getTemplateVersionId());
             
-            // 2. Generate PDF using PdfGenerationService
-            log.debug("Generating PDF for certificate: {}", certificate.getId());
-            var pdfOutputStream = pdfGenerationService.generatePdf(templateVersion, certificate);
-            var pdfBytes = pdfOutputStream.toByteArray();
+            // 2. Generate initial PDF to calculate hash
+            log.debug("Generating initial PDF for certificate: {}", certificate.getId());
+            var initialPdfOutputStream = pdfGenerationService.generatePdf(templateVersion, certificate);
+            var initialPdfBytes = initialPdfOutputStream.toByteArray();
             
-            // 3. Generate storage path
-            var storagePath = generateStoragePath(certificate);
-            certificate.setStoragePath(storagePath);
-            
-            // 4. Upload PDF to MinIO/S3
-            log.debug("Uploading PDF to storage: {}", storagePath);
-            storageService.uploadFile(
-                    storageService.getDefaultBucketName(),
-                    storagePath,
-                    pdfBytes,
-                    PDF_CONTENT_TYPE
-            );
-            
-            // 5. Generate hash from actual PDF content
-            var hashValue = generateHashFromPdfContent(pdfBytes);
+            // 3. Generate hash from PDF content
+            var hashValue = generateHashFromPdfContent(initialPdfBytes);
             certificate.setSignedHash(hashValue);
             
-            // 6. Create certificate hash record
+            // 4. Create certificate hash record (needed for PDF regeneration with hash embedded)
             var certificateHash = CertificateHash.builder()
                     .certificate(certificate)
                     .hashAlgorithm("SHA-256")
                     .hashValue(hashValue)
                     .build();
-            
             certificateHashRepository.save(certificateHash);
             
-            // 7. Mark as issued
+            // 5. Regenerate PDF with hash and QR code embedded
+            // Now that hash is saved, it will be available in template context
+            log.debug("Regenerating PDF with hash embedded for certificate: {}", certificate.getId());
+            var finalPdfOutputStream = pdfGenerationService.generatePdf(templateVersion, certificate);
+            var finalPdfBytes = finalPdfOutputStream.toByteArray();
+            
+            // 6. Generate storage path
+            var storagePath = generateStoragePath(certificate);
+            certificate.setStoragePath(storagePath);
+            
+            // 7. Upload final PDF with hash embedded to MinIO/S3
+            log.debug("Uploading PDF with hash embedded to storage: {}", storagePath);
+            storageService.uploadFile(
+                    storageService.getDefaultBucketName(),
+                    storagePath,
+                    finalPdfBytes,
+                    PDF_CONTENT_TYPE
+            );
+            
+            // 8. Mark as issued
             certificate.setStatus(Certificate.CertificateStatus.ISSUED);
             certificateRepository.save(certificate);
             
