@@ -341,7 +341,6 @@ public class CertificateServiceImpl implements CertificateService {
                         "Certificate not found with ID: " + certificateId
                 ));
 
-        validateStatusTransition(certificate.getStatus(), status);
         certificate.setStatus(status);
         var updatedCertificate = certificateRepository.save(certificate);
         log.info("Certificate status updated to {} for ID: {}", status, certificateId);
@@ -358,7 +357,6 @@ public class CertificateServiceImpl implements CertificateService {
                         "Certificate not found with ID: " + certificateId
                 ));
 
-        validateStatusTransition(certificate.getStatus(), Certificate.CertificateStatus.ISSUED);
         certificate.setStatus(Certificate.CertificateStatus.ISSUED);
         certificate.setIssuedBy(issuedBy);
         if (certificate.getIssuedAt() == null) {
@@ -380,7 +378,6 @@ public class CertificateServiceImpl implements CertificateService {
                         "Certificate not found with ID: " + certificateId
                 ));
 
-        validateStatusTransition(certificate.getStatus(), Certificate.CertificateStatus.PROCESSING);
         certificate.setStatus(Certificate.CertificateStatus.PROCESSING);
         var updatedCertificate = certificateRepository.save(certificate);
         log.info("Certificate marked as PROCESSING with ID: {}", certificateId);
@@ -397,7 +394,6 @@ public class CertificateServiceImpl implements CertificateService {
                         "Certificate not found with ID: " + certificateId
                 ));
 
-        validateStatusTransition(certificate.getStatus(), Certificate.CertificateStatus.REVOKED);
         certificate.setStatus(Certificate.CertificateStatus.REVOKED);
         var updatedCertificate = certificateRepository.save(certificate);
         log.info("Certificate revoked with ID: {}", certificateId);
@@ -426,9 +422,6 @@ public class CertificateServiceImpl implements CertificateService {
                         "Certificate not found with ID: " + certificateId
                 ));
 
-        if (certificate.getStatus() != Certificate.CertificateStatus.FAILED) {
-            validateStatusTransition(certificate.getStatus(), Certificate.CertificateStatus.FAILED);
-        }
         certificate.setStatus(Certificate.CertificateStatus.FAILED);
         
         // Store error message in metadata
@@ -638,37 +631,6 @@ public class CertificateServiceImpl implements CertificateService {
                 ));
 
         return customer.getId();
-    }
-
-    private void validateStatusTransition(Certificate.CertificateStatus currentStatus, 
-                                         Certificate.CertificateStatus newStatus) {
-        if (currentStatus == newStatus) {
-            return;
-        }
-
-        var validTransitions = switch (currentStatus) {
-            case PENDING -> java.util.Set.of(
-                    Certificate.CertificateStatus.PROCESSING,
-                    Certificate.CertificateStatus.FAILED
-            );
-            case PROCESSING -> java.util.Set.of(
-                    Certificate.CertificateStatus.ISSUED,
-                    Certificate.CertificateStatus.FAILED
-            );
-            case ISSUED -> java.util.Set.of(
-                    Certificate.CertificateStatus.REVOKED
-            );
-            case REVOKED -> java.util.Set.of();
-            case FAILED -> java.util.Set.of(
-                    Certificate.CertificateStatus.PROCESSING
-            );
-        };
-
-        if (!validTransitions.contains(newStatus)) {
-            throw new IllegalStateException(
-                    String.format("Invalid status transition from %s to %s", currentStatus, newStatus)
-            );
-        }
     }
 
     private void validateCustomerLimits(Long customerId) {
