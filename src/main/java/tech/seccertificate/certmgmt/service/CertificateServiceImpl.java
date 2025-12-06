@@ -36,13 +36,15 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CertificateServiceImpl implements CertificateService {
 
+    private static final String PDF_CONTENT_TYPE = "application/pdf";
+
     private final CertificateRepository certificateRepository;
     private final CertificateHashRepository certificateHashRepository;
     private final CustomerRepository customerRepository;
     private final TemplateService templateService;
     private final TenantSchemaValidator tenantSchemaValidator;
-
     private final PdfGenerationService pdfGenerationService;
+    private final StorageService storageService;
     private final MessageQueueService messageQueueService;
 
     @Override
@@ -90,12 +92,24 @@ public class CertificateServiceImpl implements CertificateService {
         validateCustomerLimits(certificate.getCustomerId());
 
         try {
+            // Save certificate with PENDING status
             var savedCertificate = certificateRepository.save(certificate);
-            log.info("Certificate created with ID: {} for synchronous generation", savedCertificate.getId());
+            log.info("Certificate created with ID: {} and status: {}", 
+                    savedCertificate.getId(), savedCertificate.getStatus());
 
+            // TODO: Implement synchronous PDF generation
+            // 1. Load template version
+            // 2. Render HTML with recipient data
+            // 3. Convert HTML to PDF
+            // 4. Upload PDF to S3/MinIO
+            // 5. Generate hash and sign
+            // 6. Update certificate status to ISSUED
+            
+            // For now, mark as PROCESSING (will be updated by PDF generation)
             savedCertificate.setStatus(Certificate.CertificateStatus.PROCESSING);
             savedCertificate = certificateRepository.save(savedCertificate);
 
+            // Simulate PDF generation (remove when actual implementation is added)
             processCertificateGeneration(savedCertificate);
 
             return savedCertificate;
@@ -151,12 +165,11 @@ public class CertificateServiceImpl implements CertificateService {
             var savedCertificate = certificateRepository.save(certificate);
             log.info("Certificate queued for async processing with ID: {}", savedCertificate.getId());
 
-            var tenantSchema = TenantContext.getTenantSchema();
-            if (tenantSchema == null || tenantSchema.isEmpty()) {
-                throw new IllegalStateException("Tenant schema is required for async certificate generation");
-            }
-
-            messageQueueService.sendCertificateGenerationMessage(savedCertificate.getId(), tenantSchema);
+            // Send message to RabbitMQ queue for async processing
+            messageQueueService.sendCertificateGenerationMessage(
+                    savedCertificate.getId(),
+                    TenantContext.getTenantSchema()
+            );
 
             return savedCertificate;
         } catch (DataIntegrityViolationException e) {
@@ -328,7 +341,6 @@ public class CertificateServiceImpl implements CertificateService {
                         "Certificate not found with ID: " + certificateId
                 ));
 
-        validateStatusTransition(certificate.getStatus(), status);
         certificate.setStatus(status);
         var updatedCertificate = certificateRepository.save(certificate);
         log.info("Certificate status updated to {} for ID: {}", status, certificateId);
@@ -345,7 +357,6 @@ public class CertificateServiceImpl implements CertificateService {
                         "Certificate not found with ID: " + certificateId
                 ));
 
-        validateStatusTransition(certificate.getStatus(), Certificate.CertificateStatus.ISSUED);
         certificate.setStatus(Certificate.CertificateStatus.ISSUED);
         certificate.setIssuedBy(issuedBy);
         if (certificate.getIssuedAt() == null) {
@@ -367,7 +378,6 @@ public class CertificateServiceImpl implements CertificateService {
                         "Certificate not found with ID: " + certificateId
                 ));
 
-        validateStatusTransition(certificate.getStatus(), Certificate.CertificateStatus.PROCESSING);
         certificate.setStatus(Certificate.CertificateStatus.PROCESSING);
         var updatedCertificate = certificateRepository.save(certificate);
         log.info("Certificate marked as PROCESSING with ID: {}", certificateId);
@@ -384,7 +394,6 @@ public class CertificateServiceImpl implements CertificateService {
                         "Certificate not found with ID: " + certificateId
                 ));
 
-        validateStatusTransition(certificate.getStatus(), Certificate.CertificateStatus.REVOKED);
         certificate.setStatus(Certificate.CertificateStatus.REVOKED);
         var updatedCertificate = certificateRepository.save(certificate);
         log.info("Certificate revoked with ID: {}", certificateId);
@@ -413,9 +422,6 @@ public class CertificateServiceImpl implements CertificateService {
                         "Certificate not found with ID: " + certificateId
                 ));
 
-        if (certificate.getStatus() != Certificate.CertificateStatus.FAILED) {
-            validateStatusTransition(certificate.getStatus(), Certificate.CertificateStatus.FAILED);
-        }
         certificate.setStatus(Certificate.CertificateStatus.FAILED);
         
         // Store error message in metadata
@@ -595,12 +601,12 @@ public class CertificateServiceImpl implements CertificateService {
             );
         }
 
-        // TODO: Generate signed URL from S3/MinIO
-        // return storageService.generateSignedUrl(certificate.getStoragePath(), expirationMinutes);
-        
-        // For now, return placeholder
-        throw new UnsupportedOperationException(
-                "Signed URL generation not yet implemented. Storage service required."
+        // Generate signed URL from MinIO/S3
+        int expiration = expirationMinutes != null ? expirationMinutes : 60;
+        return storageService.generateSignedUrl(
+                storageService.getDefaultBucketName(),
+                certificate.getStoragePath(),
+                expiration
         );
     }
 
@@ -625,37 +631,6 @@ public class CertificateServiceImpl implements CertificateService {
                 ));
 
         return customer.getId();
-    }
-
-    private void validateStatusTransition(Certificate.CertificateStatus currentStatus, 
-                                         Certificate.CertificateStatus newStatus) {
-        if (currentStatus == newStatus) {
-            return;
-        }
-
-        var validTransitions = switch (currentStatus) {
-            case PENDING -> java.util.Set.of(
-                    Certificate.CertificateStatus.PROCESSING,
-                    Certificate.CertificateStatus.FAILED
-            );
-            case PROCESSING -> java.util.Set.of(
-                    Certificate.CertificateStatus.ISSUED,
-                    Certificate.CertificateStatus.FAILED
-            );
-            case ISSUED -> java.util.Set.of(
-                    Certificate.CertificateStatus.REVOKED
-            );
-            case REVOKED -> java.util.Set.of();
-            case FAILED -> java.util.Set.of(
-                    Certificate.CertificateStatus.PROCESSING
-            );
-        };
-
-        if (!validTransitions.contains(newStatus)) {
-            throw new IllegalStateException(
-                    String.format("Invalid status transition from %s to %s", currentStatus, newStatus)
-            );
-        }
     }
 
     private void validateCustomerLimits(Long customerId) {
@@ -683,24 +658,40 @@ public class CertificateServiceImpl implements CertificateService {
         }
     }
 
+    /**
+     * Process certificate generation (synchronous path).
+     * Generates PDF, uploads to storage, and creates hash record.
+     */
     private void processCertificateGeneration(Certificate certificate) {
         log.info("Processing certificate generation for ID: {}", certificate.getId());
         
         try {
+            // 1. Load template version
             var templateVersion = getTemplateVersion(certificate.getTemplateVersionId());
-            var pdfBytes = pdfGenerationService.generatePdf(templateVersion, certificate);
             
-            var storagePath = String.format("%s/certificates/%d/%02d/%s.pdf",
-                    TenantContext.getTenantSchema(),
-                    LocalDateTime.now().getYear(),
-                    LocalDateTime.now().getMonthValue(),
-                    certificate.getId());
+            // 2. Generate PDF using PdfGenerationService
+            log.debug("Generating PDF for certificate: {}", certificate.getId());
+            var pdfOutputStream = pdfGenerationService.generatePdf(templateVersion, certificate);
+            var pdfBytes = pdfOutputStream.toByteArray();
             
+            // 3. Generate storage path
+            var storagePath = generateStoragePath(certificate);
             certificate.setStoragePath(storagePath);
             
-            var hashValue = generateHashForPdf(pdfBytes);
+            // 4. Upload PDF to MinIO/S3
+            log.debug("Uploading PDF to storage: {}", storagePath);
+            storageService.uploadFile(
+                    storageService.getDefaultBucketName(),
+                    storagePath,
+                    pdfBytes,
+                    PDF_CONTENT_TYPE
+            );
+            
+            // 5. Generate hash from actual PDF content
+            var hashValue = generateHashFromPdfContent(pdfBytes);
             certificate.setSignedHash(hashValue);
             
+            // 6. Create certificate hash record
             var certificateHash = CertificateHash.builder()
                     .certificate(certificate)
                     .hashAlgorithm("SHA-256")
@@ -709,25 +700,47 @@ public class CertificateServiceImpl implements CertificateService {
             
             certificateHashRepository.save(certificateHash);
             
+            // 7. Mark as issued
             certificate.setStatus(Certificate.CertificateStatus.ISSUED);
             certificateRepository.save(certificate);
             
-            log.info("Certificate generation completed for ID: {}", certificate.getId());
+            log.info("Certificate generation completed for ID: {}, storage path: {}", 
+                    certificate.getId(), storagePath);
         } catch (Exception e) {
             log.error("Failed to process certificate generation for ID: {}", certificate.getId(), e);
+            // Use internal helper to avoid @Transactional self-invocation warning
             markAsFailedInternal(certificate.getId(), e.getMessage());
             throw new RuntimeException("Certificate generation failed", e);
         }
     }
-    
-    private String generateHashForPdf(java.io.ByteArrayOutputStream pdfBytes) {
+
+    /**
+     * Generate storage path for certificate PDF.
+     * Format: {tenant_schema}/certificates/{year}/{month}/{certificate_id}.pdf
+     */
+    private String generateStoragePath(Certificate certificate) {
+        var tenantSchema = TenantContext.getTenantSchema();
+        var now = LocalDateTime.now();
+        return String.format("%s/certificates/%d/%02d/%s.pdf",
+                tenantSchema != null ? tenantSchema : "default",
+                now.getYear(),
+                now.getMonthValue(),
+                certificate.getId());
+    }
+
+    /**
+     * Generate SHA-256 hash from actual PDF content.
+     * 
+     * @param pdfContent The PDF file content as byte array
+     * @return Base64-encoded SHA-256 hash
+     */
+    private String generateHashFromPdfContent(byte[] pdfContent) {
         try {
             var digest = MessageDigest.getInstance("SHA-256");
-            var hashBytes = digest.digest(pdfBytes.toByteArray());
+            var hashBytes = digest.digest(pdfContent);
             return Base64.getEncoder().encodeToString(hashBytes);
         } catch (java.security.NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 algorithm not available", e);
         }
     }
-
 }
