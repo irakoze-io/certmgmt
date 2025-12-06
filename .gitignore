@@ -55,3 +55,7 @@ postgres-data/
 /TESTCONTAINERS_SETUP.md
 /E2E_TEST_COVERAGE.md
 /minio-data/
+*.DS_Store
+.DS_Store
+./.DS_Store
+/.fleet
