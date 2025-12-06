@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * RabbitMQ configuration for async PDF generation pipeline.
- * 
+ *
  * <p>Queue Structure:
  * <pre>
  * certificate.exchange (topic)
@@ -74,10 +74,7 @@ public class RabbitMQConfig {
 
     @Bean
     public MessageConverter jsonMessageConverter(ObjectMapper objectMapper) {
-        var converter = new Jackson2JsonMessageConverter(objectMapper);
-        // Jackson2JsonMessageConverter automatically includes __TypeId__ header
-        // which allows proper deserialization to the target type
-        return converter;
+        return new Jackson2JsonMessageConverter(objectMapper);
     }
 
     @Bean
@@ -85,7 +82,7 @@ public class RabbitMQConfig {
         var template = new RabbitTemplate(connectionFactory);
         template.setMessageConverter(jsonMessageConverter(objectMapper));
         template.setMandatory(true);
-        
+
         template.setConfirmCallback((correlationData, ack, cause) -> {
             if (ack) {
                 log.debug("Message confirmed: {}", correlationData);
@@ -93,13 +90,13 @@ public class RabbitMQConfig {
                 log.error("Message not confirmed: {}, cause: {}", correlationData, cause);
             }
         });
-        
-        template.setReturnsCallback(returned -> {
-            log.error("Message returned: {}, replyCode: {}, replyText: {}, exchange: {}, routingKey: {}",
-                    returned.getMessage(), returned.getReplyCode(), returned.getReplyText(),
-                    returned.getExchange(), returned.getRoutingKey());
-        });
-        
+
+        template.setReturnsCallback(
+                returned -> log
+                        .error("Message returned: {}, replyCode: {}, replyText: {}, exchange: {}, routingKey: {}",
+                                returned.getMessage(), returned.getReplyCode(), returned.getReplyText(),
+                                returned.getExchange(), returned.getRoutingKey()));
+
         return template;
     }
 
@@ -114,7 +111,7 @@ public class RabbitMQConfig {
         factory.setPrefetchCount(10);
         factory.setAcknowledgeMode(AcknowledgeMode.MANUAL);
         factory.setDefaultRequeueRejected(false);
-        
+
         return factory;
     }
 }
