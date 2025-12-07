@@ -8,6 +8,7 @@ import tech.seccertificate.certmgmt.entity.User;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Repository for User entity with tenant schema support.
@@ -19,6 +20,8 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
     Optional<User> findByEmail(String email);
 
     Optional<User> findByKeycloakId(String keycloakId);
+
+    Optional<User> findByUuid(UUID uuid);
 
     List<User> findByActiveTrue();
 

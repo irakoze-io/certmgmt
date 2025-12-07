@@ -25,3 +25,5 @@ databaseChangeLog:
       file: db/changelog/changes/012-drop-public-template-table.yaml
   - include:
       file: db/changelog/changes/013-update-certificate-hash-schema.yaml
+  - include:
+      file: db/changelog/changes/014-add-user-uuid-column.yaml
