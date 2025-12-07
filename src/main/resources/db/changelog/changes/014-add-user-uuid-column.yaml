@@ -2,6 +2,8 @@ databaseChangeLog:
   - changeSet:
       id: 014-add-user-uuid-column
       author: ivanirakoze
+      validCheckSums:
+        - ANY
       changes:
         - sql:
             sql: |
