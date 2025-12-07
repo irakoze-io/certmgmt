@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import tech.seccertificate.certmgmt.dto.Response;
 import tech.seccertificate.certmgmt.dto.customer.CreateCustomerRequest;
@@ -160,11 +161,16 @@ public class CustomerController {
     /**
      * Get all customers.
      * 
+     * <p>This endpoint is restricted to ADMIN users only.
+     * Regular users cannot access this endpoint as it returns
+     * all customers across all tenants.
+     *
      * @return List of customer responses with 200 status
      */
     @Operation(
         summary = "Get all customers",
-        description = "Retrieves a list of all customers in the system"
+        description = "Retrieves a list of all customers in the system. " +
+                      "Restricted to SUPER_ADMIN users only."
     )
     @ApiResponses(value = {
         @ApiResponse(
@@ -174,8 +180,17 @@ public class CustomerController {
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
                 schema = @Schema(implementation = Response.class)
             )
+        ),
+        @ApiResponse(
+            responseCode = "403",
+            description = "Access denied - ADMIN role required",
+            content = @Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = @Schema(implementation = Response.class)
+            )
         )
     })
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     public ResponseEntity<Response<java.util.List<CustomerResponse>>> getAllCustomers() {
         log.debug("Getting all customers");
