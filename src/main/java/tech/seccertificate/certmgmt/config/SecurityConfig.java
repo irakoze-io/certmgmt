@@ -1,17 +1,28 @@
 package tech.seccertificate.certmgmt.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.annotation.Order;
+import org.springframework.core.convert.converter.Converter;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
+import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
+import tech.seccertificate.certmgmt.security.JwtAuthenticationConverter;
+import tech.seccertificate.certmgmt.security.SecurityExceptionHandlers;
 import tech.seccertificate.certmgmt.security.TenantUserDetailsService;
+
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 
 
 @Configuration
@@ -19,46 +30,99 @@ import tech.seccertificate.certmgmt.security.TenantUserDetailsService;
 public class SecurityConfig {
 
     private final TenantUserDetailsService userDetailsService;
+    private final SecurityExceptionHandlers securityExceptionHandlers;
+    private final String jwtSecret;
 
-    public SecurityConfig(TenantUserDetailsService userDetailsService) {
+    public SecurityConfig(TenantUserDetailsService userDetailsService,
+                         SecurityExceptionHandlers securityExceptionHandlers,
+                         @Value("${jwt.secret:your-256-bit-secret-key-change-this-in-production-use-a-long-random-string}") String jwtSecret) {
         this.userDetailsService = userDetailsService;
+        this.securityExceptionHandlers = securityExceptionHandlers;
+        this.jwtSecret = jwtSecret;
     }
 
     /**
-     * Security filter chain for OAuth2 Authorization Server endpoints.
-     * This chain has higher priority (lower order) and handles OAuth2/OIDC endpoints.
+     * Security filter chain for API endpoints with JWT-based authentication.
+     *
+     * <p>This chain:
+     * <ul>
+     *   <li>Configures JWT decoder using symmetric key (HMAC-SHA256)</li>
+     *   <li>Uses stateless sessions (no session storage)</li>
+     *   <li>Protects all endpoints except public ones (actuator, docs, public auth endpoints)</li>
+     *   <li>Provides custom authentication entry point and access denied handler</li>
+     *   <li>Validates all authenticated requests</li>
+     * </ul>
+     *
+     * <p>Public endpoints:
+     * <ul>
+     *   <li>Actuator endpoints</li>
+     *   <li>API documentation (Swagger/Scalar)</li>
+     *   <li>Customer registration (POST /api/customers)</li>
+     *   <li>User creation (POST /auth/users)</li>
+     *   <li>Login endpoint (POST /auth/login)</li>
+     * </ul>
+     *
+     * <p>All other endpoints require a valid JWT token in the Authorization header:
+     * <pre>Authorization: Bearer &lt;jwt-token&gt;</pre>
      */
     @Bean
-    @Order(1)
-    SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) {
-        return http
-                .securityMatcher("/oauth2/**", "/.well-known/**")
-                .oauth2AuthorizationServer(authorizationServer -> authorizationServer
-                        .oidc(Customizer.withDefaults()))
-                .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
-                .build();
-    }
-
-    /**
-     * Security filter chain for API endpoints.
-     * This chain handles all other requests including public endpoints.
-     */
-    @Bean
-    @Order(2)
-    SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) {
+    SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .authorizeHttpRequests(authorize -> authorize
+                        // Public endpoints
                         .requestMatchers("/actuator/**", "/v3/api-docs/**", "/swagger-ui/**",
                                 "/scalar/**", "/error").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/customers").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/users").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
                         .anyRequest().authenticated())
-                .userDetailsService(userDetailsService)
-                .httpBasic(Customizer.withDefaults())
-                // .formLogin(Customizer.withDefaults())
-                .csrf(AbstractHttpConfigurer::disable) // Disable CSRF for API endpoints
+                // Configure JWT Resource Server for token validation
+                // Note: Despite the name "oauth2ResourceServer", this doesn't require OAuth2 Authorization Server.
+                // It's Spring Security's standard JWT validation infrastructure that works with any JWT tokens.
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt
+                                .decoder(jwtDecoder())
+                                .jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                        // Custom exception handlers for authentication/authorization failures
+                        .authenticationEntryPoint(securityExceptionHandlers)
+                        .accessDeniedHandler(securityExceptionHandlers))
+                // Stateless session management (no session storage)
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                // Disable CSRF for stateless API (JWT tokens are CSRF-resistant)
+                .csrf(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
                 .build();
+    }
+
+    /**
+     * Creates a JWT decoder using symmetric key (HMAC-SHA256).
+     *
+     * <p>The decoder validates JWT tokens signed with the same secret key
+     * used to generate tokens in JwtTokenService.
+     *
+     * @return JWT decoder
+     */
+    @Bean
+    JwtDecoder jwtDecoder() {
+        if (jwtSecret.length() < 32) {
+            throw new IllegalArgumentException("JWT secret must be at least 32 characters long");
+        }
+        var secretKey = new SecretKeySpec(
+                jwtSecret.getBytes(StandardCharsets.UTF_8),
+                "HmacSHA256");
+        return NimbusJwtDecoder.withSecretKey(secretKey).build();
+    }
+
+    /**
+     * Creates a custom JWT authentication converter that extracts authorities from JWT claims.
+     *
+     * @return JWT authentication converter
+     */
+    @Bean
+    Converter<Jwt, AbstractAuthenticationToken> jwtAuthenticationConverter() {
+        return new JwtAuthenticationConverter();
     }
 
     @Bean

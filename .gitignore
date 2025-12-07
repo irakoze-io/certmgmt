@@ -49,6 +49,13 @@ logback-spring.xml
 /GRADLE_MIGRATION.md
 /POSTMAN_COLLECTION_README.md
 /Tenant_Schema_Switching_Guide.md
+/src/main/java/tech/seccertificate/certmgmt/security/LOGIN_GUIDE.md
+/src/main/java/tech/seccertificate/certmgmt/security/README.md
+/src/main/java/tech/seccertificate/certmgmt/security/REDIRECT_URI_EXPLANATION.md
+/src/main/java/tech/seccertificate/certmgmt/security/STEP_BY_STEP_LOGIN_GUIDE.md
+/src/main/java/tech/seccertificate/certmgmt/security/QUICK_REFERENCE.md
+/src/main/java/tech/seccertificate/certmgmt/security/OAUTH2_RESOURCE_SERVER_EXPLANATION.md
+
 /docs/
 /logs/
 /qodana.yaml

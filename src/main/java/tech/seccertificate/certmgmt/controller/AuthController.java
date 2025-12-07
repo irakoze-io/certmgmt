@@ -26,6 +26,7 @@ import tech.seccertificate.certmgmt.entity.Customer;
 import tech.seccertificate.certmgmt.entity.User;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
 import tech.seccertificate.certmgmt.repository.UserRepository;
+import tech.seccertificate.certmgmt.security.JwtTokenService;
 import tech.seccertificate.certmgmt.security.TenantUserDetails;
 
 import java.security.Principal;
@@ -42,27 +43,105 @@ public class AuthController {
     private final UserRepository userRepository;
     private final CustomerRepository customerRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtTokenService jwtTokenService;
+
+    @Operation(
+            summary = "Login",
+            description = "Authenticates a user and returns a JWT token along with user details. Requires X-Tenant-Id header to identify the tenant."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Login successful",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = Response.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Invalid credentials"
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Tenant context not set or invalid request"
+            )
+    })
+    @PostMapping("/login")
+    public ResponseEntity<Response<Map<String, Object>>> login(
+            @RequestHeader(value = TenantResolutionFilter.TENANT_ID_HEADER, required = false) String tenantIdHeader,
+            @Valid @RequestBody LoginRequest request) {
+
+        log.debug("Login attempt for email: {} with tenant: {}", request.getEmail(), tenantIdHeader);
+
+        var tenantSchema = TenantContext.getTenantSchema();
+        if (tenantSchema == null || tenantSchema.isEmpty()) {
+            throw new IllegalStateException(
+                    "Tenant context not set. Please provide X-Tenant-Id header."
+            );
+        }
+
+        var customer = customerRepository.findByTenantSchema(tenantSchema)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Customer not found for tenant schema: " + tenantSchema
+                ));
+
+        var user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new IllegalArgumentException("Invalid credentials"));
+
+        if (!user.getActive()) {
+            throw new IllegalArgumentException("User account is inactive");
+        }
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            throw new IllegalArgumentException("Invalid credentials");
+        }
+
+        user.setLastLogin(java.time.LocalDateTime.now());
+        userRepository.save(user);
+
+        log.info("User {} logged in successfully for customer {}", user.getEmail(), customer.getId());
+
+        // Generate JWT token
+        String jwtToken = jwtTokenService.generateToken(user, tenantSchema);
+
+        Map<String, Object> loginData = Map.of(
+                "token", jwtToken,
+                "tokenType", "Bearer",
+                "userId", user.getId().toString(),
+                "email", user.getEmail(),
+                "customerId", user.getCustomerId(),
+                "firstName", user.getFirstName() != null ? user.getFirstName() : "",
+                "lastName", user.getLastName() != null ? user.getLastName() : "",
+                "role", user.getRole().name(),
+                "tenantSchema", tenantSchema,
+                "authenticated", true
+        );
+
+        var response = Response.success("Login successful", loginData);
+        return ResponseEntity.ok(response);
+    }
 
     @GetMapping("/me")
     public ResponseEntity<Map<String, Object>> me(Principal principal) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         Map<String, Object> userInfo = Map.of(
-            "username", principal != null ? principal.getName() : "anonymous",
-            "authenticated", authentication != null && authentication.isAuthenticated()
+                "username", principal != null ? principal.getName() : "anonymous",
+                "authenticated", authentication != null && authentication.isAuthenticated()
         );
 
         if (authentication != null && authentication.getPrincipal() instanceof TenantUserDetails userDetails) {
             userInfo = Map.of(
-                "username", userDetails.getUsername(),
-                "email", userDetails.getEmail(),
-                "userId", userDetails.getUserId().toString(),
-                "customerId", userDetails.getCustomerId(),
-                "role", userDetails.getRole().name(),
-                "tenantSchema", userDetails.getTenantSchema(),
-                "firstName", userDetails.getFirstName() != null ? userDetails.getFirstName() : "",
-                "lastName", userDetails.getLastName() != null ? userDetails.getLastName() : "",
-                "authenticated", true
+                    "username", userDetails.getUsername(),
+                    "email", userDetails.getEmail(),
+                    "userId", userDetails.getUserId().toString(),
+                    "customerId", userDetails.getCustomerId(),
+                    "role", userDetails.getRole().name(),
+                    "tenantSchema", userDetails.getTenantSchema(),
+                    "firstName", userDetails.getFirstName() != null ? userDetails.getFirstName() : "",
+                    "lastName", userDetails.getLastName() != null ? userDetails.getLastName() : "",
+                    "authenticated", true
             );
         }
 
@@ -70,21 +149,21 @@ public class AuthController {
     }
 
     @Operation(
-        summary = "Create a new user",
-        description = "Creates a new user in the tenant specified by X-Tenant-Id header. " +
-                      "The user will be created in the tenant's schema. Email must be unique within the tenant."
+            summary = "Create a new user",
+            description = "Creates a new user in the tenant specified by X-Tenant-Id header. " +
+                    "The user will be created in the tenant's schema. Email must be unique within the tenant."
     )
     @ApiResponses(value = {
-        @ApiResponse(
-            responseCode = "201",
-            description = "User created successfully",
-            content = @Content(
-                mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = @Schema(implementation = Response.class),
-                examples = @ExampleObject(
-                    name = "Success",
-                    summary = "User Created",
-                    value = """
+            @ApiResponse(
+                    responseCode = "201",
+                    description = "User created successfully",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = Response.class),
+                            examples = @ExampleObject(
+                                    name = "Success",
+                                    summary = "User Created",
+                                    value = """
                         {
                           "success": true,
                           "message": "User created successfully",
@@ -100,17 +179,17 @@ public class AuthController {
                           }
                         }
                         """
-                )
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Validation error or bad request (e.g., email already exists, tenant context not set)"
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Unauthorized"
             )
-        ),
-        @ApiResponse(
-            responseCode = "400",
-            description = "Validation error or bad request (e.g., email already exists, tenant context not set)"
-        ),
-        @ApiResponse(
-            responseCode = "401",
-            description = "Unauthorized"
-        )
     })
     @PostMapping("/users")
     public ResponseEntity<Response<LoginResponse>> createUser(
@@ -123,20 +202,20 @@ public class AuthController {
         String tenantSchema = TenantContext.getTenantSchema();
         if (tenantSchema == null || tenantSchema.isEmpty()) {
             throw new IllegalStateException(
-                "Tenant context not set. Please provide X-Tenant-Id header."
+                    "Tenant context not set. Please provide X-Tenant-Id header."
             );
         }
 
         // Get customer to retrieve customerId
         Customer customer = customerRepository.findByTenantSchema(tenantSchema)
-            .orElseThrow(() -> new IllegalStateException(
-                "Customer not found for tenant schema: " + tenantSchema
-            ));
+                .orElseThrow(() -> new IllegalStateException(
+                        "Customer not found for tenant schema: " + tenantSchema
+                ));
 
         // Check if email already exists
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException(
-                "User with email " + request.getEmail() + " already exists in this tenant"
+                    "User with email " + request.getEmail() + " already exists in this tenant"
             );
         }
 
@@ -148,7 +227,7 @@ public class AuthController {
             // Check if keycloak_id already exists
             if (userRepository.existsByKeycloakId(keycloakId)) {
                 throw new IllegalArgumentException(
-                    "User with keycloak_id " + keycloakId + " already exists"
+                        "User with keycloak_id " + keycloakId + " already exists"
                 );
             }
         }
@@ -174,7 +253,7 @@ public class AuthController {
 
         LoginResponse loginResponse = LoginResponse.from(savedUser);
         var response = Response.success(
-            "User created successfully",
+                "User created successfully",
                 loginResponse
         );
 

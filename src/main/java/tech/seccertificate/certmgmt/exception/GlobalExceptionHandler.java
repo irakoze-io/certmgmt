@@ -3,6 +3,8 @@ package tech.seccertificate.certmgmt.exception;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -195,6 +197,46 @@ public class GlobalExceptionHandler {
                 List.of(ex.getMessage())
         );
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
+    // ==================== Security Exceptions ====================
+
+    /**
+     * Handle authentication exceptions (e.g., invalid or expired JWT tokens).
+     * 
+     * <p>Note: Most authentication failures are handled by {@link tech.seccertificate.certmgmt.security.SecurityExceptionHandlers}
+     * at the filter level. This handler serves as a fallback for authentication exceptions
+     * that escape the security filter chain.
+     */
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<Response<Void>> handleAuthenticationException(AuthenticationException ex) {
+        log.warn("Authentication failed: {}", ex.getMessage());
+        var response = Response.<Void>error(
+                "Authentication required. Please provide a valid JWT token.",
+                "UNAUTHORIZED",
+                "Authentication Error",
+                List.of(ex.getMessage() != null ? ex.getMessage() : "Invalid or missing authentication token")
+        );
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+    }
+
+    /**
+     * Handle access denied exceptions (authorization failures).
+     * 
+     * <p>Note: Most authorization failures are handled by {@link tech.seccertificate.certmgmt.security.SecurityExceptionHandlers}
+     * at the filter level. This handler serves as a fallback for access denied exceptions
+     * that escape the security filter chain.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Response<Void>> handleAccessDeniedException(AccessDeniedException ex) {
+        log.warn("Access denied: {}", ex.getMessage());
+        var response = Response.<Void>error(
+                "Access denied. You do not have permission to access this resource.",
+                "FORBIDDEN",
+                "Authorization Error",
+                List.of(ex.getMessage() != null ? ex.getMessage() : "Insufficient permissions")
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
     }
 
     // ==================== General Exceptions ====================
