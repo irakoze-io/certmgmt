@@ -8,13 +8,14 @@ import tech.seccertificate.certmgmt.entity.User;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Repository for User entity with tenant schema support.
  * All operations are scoped to the current tenant schema set in TenantContext.
  */
 @Repository
-public interface UserRepository extends JpaRepository<User, Long>, UserRepositoryCustom {
+public interface UserRepository extends JpaRepository<User, UUID>, UserRepositoryCustom {
 
     Optional<User> findByEmail(String email);
 
