@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.context.spi.CurrentTenantIdentifierResolver;
 import org.hibernate.engine.jdbc.connections.spi.MultiTenantConnectionProvider;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -33,15 +33,24 @@ import java.util.Map;
  * @author Ivan-Beaudry Irakoze
  * @since Dec 4, 2024
  */
-@Configuration
 @Slf4j
+@Configuration
 public class MultiTenantConfig {
+
+    @Value("${spring.jpa.show-sql}")
+    private String showSql;
+
+    @Value("${spring.jpa.properties.hibernate.format_sql}")
+    private String formatSql;
+
+    @Value("${spring.jpa.properties.hibernate.multiTenancy}")
+    private String multiTenancy;
 
     private MultiTenantConnectionProvider multiTenantConnectionProvider;
     private CurrentTenantIdentifierResolver currentTenantIdentifierResolver;
+    private final DataSource dataSource;
 
-    @Autowired
-    private DataSource dataSource;
+    public MultiTenantConfig(DataSource dataSource) { this.dataSource = dataSource; }
 
     /**
      * Configures EntityManagerFactory with Hibernate multi-tenancy support.
@@ -78,11 +87,11 @@ public class MultiTenantConfig {
         // Copy standard JPA/Hibernate properties from application.properties
         properties.put("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
         properties.put("hibernate.hbm2ddl.auto", "none");
-        properties.put("hibernate.show_sql", "true");
-        properties.put("hibernate.format_sql", "true");
+        properties.put("hibernate.show_sql", showSql);
+        properties.put("hibernate.format_sql", formatSql);
         
         // CRITICAL: Configure multi-tenancy
-        properties.put("hibernate.multiTenancy", "SCHEMA");
+        properties.put("hibernate.multiTenancy", multiTenancy);
         properties.put(
                 AvailableSettings.MULTI_TENANT_CONNECTION_PROVIDER, 
                 multiTenantConnectionProvider
