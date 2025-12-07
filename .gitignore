@@ -56,6 +56,7 @@ logback-spring.xml
 /src/main/java/tech/seccertificate/certmgmt/security/QUICK_REFERENCE.md
 /src/main/java/tech/seccertificate/certmgmt/security/OAUTH2_RESOURCE_SERVER_EXPLANATION.md
 /src/main/java/tech/seccertificate/certmgmt/security/STATELESS_SESSIONS_EXPLANATION.md
+/src/main/java/tech/seccertificate/certmgmt/security/TENANT_IN_JWT_ANALYSIS.md
 /secret.key
 /docs/
 /logs/
