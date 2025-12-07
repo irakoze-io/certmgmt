@@ -4,12 +4,12 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import tech.seccertificate.certmgmt.entity.User;
 
 import javax.crypto.SecretKey;
-import java.security.Key;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -43,7 +43,7 @@ public class JwtTokenService {
     private final long tokenValidityInSeconds;
 
     public JwtTokenService(
-            @Value("${jwt.secret:your-256-bit-secret-key-change-this-in-production-use-a-long-random-string}") String secret,
+            @Value("${jwt.secret:eQbbr3+SBvrUDiYRCwjX5e1WC+Zowfmt2CHZCdTgpi0=}") String secret,
             @Value("${jwt.expiration-seconds:3600}") long tokenValidityInSeconds) {
         if (secret.length() < 32) {
             throw new IllegalArgumentException("JWT secret must be at least 32 characters long");
@@ -64,15 +64,7 @@ public class JwtTokenService {
         var now = Instant.now();
         var expiration = now.plus(tokenValidityInSeconds, ChronoUnit.SECONDS);
 
-        Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", user.getId().toString());
-        claims.put("customerId", user.getCustomerId());
-        claims.put("tenantSchema", tenantSchema);
-        claims.put("role", user.getRole().name());
-        claims.put("firstName", user.getFirstName() != null ? user.getFirstName() : "");
-        claims.put("lastName", user.getLastName() != null ? user.getLastName() : "");
-        // Add Spring Security authority format
-        claims.put("authorities", "ROLE_" + user.getRole().name());
+        Map<String, Object> claims = getStringObjectMap(user, tenantSchema);
 
         return Jwts.builder()
                 .claims(claims)
@@ -81,6 +73,19 @@ public class JwtTokenService {
                 .expiration(Date.from(expiration))
                 .signWith(secretKey, Jwts.SIG.HS256)
                 .compact();
+    }
+
+    @NotNull
+    private static Map<String, Object> getStringObjectMap(User user, String tenantSchema) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", user.getId().toString());
+        claims.put("customerId", user.getCustomerId());
+        claims.put("tenant", tenantSchema);
+        claims.put("firstName", user.getFirstName() != null ? user.getFirstName() : "");
+        claims.put("lastName", user.getLastName() != null ? user.getLastName() : "");
+        claims.put("authorities", "ROLE_" + user.getRole().name());
+
+        return claims;
     }
 
     /**

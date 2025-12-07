@@ -18,9 +18,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 import tech.seccertificate.certmgmt.security.JwtAuthenticationConverter;
 import tech.seccertificate.certmgmt.security.SecurityExceptionHandlers;
-import tech.seccertificate.certmgmt.security.TenantUserDetailsService;
 
-import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 
@@ -29,14 +27,11 @@ import java.nio.charset.StandardCharsets;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final TenantUserDetailsService userDetailsService;
     private final SecurityExceptionHandlers securityExceptionHandlers;
     private final String jwtSecret;
 
-    public SecurityConfig(TenantUserDetailsService userDetailsService,
-                         SecurityExceptionHandlers securityExceptionHandlers,
-                         @Value("${jwt.secret:your-256-bit-secret-key-change-this-in-production-use-a-long-random-string}") String jwtSecret) {
-        this.userDetailsService = userDetailsService;
+    public SecurityConfig(SecurityExceptionHandlers securityExceptionHandlers,
+                          @Value("${jwt.secret:eQbbr3+SBvrUDiYRCwjX5e1WC+Zowfmt2CHZCdTgpi0=}") String jwtSecret) {
         this.securityExceptionHandlers = securityExceptionHandlers;
         this.jwtSecret = jwtSecret;
     }
@@ -66,27 +61,21 @@ public class SecurityConfig {
      * <pre>Authorization: Bearer &lt;jwt-token&gt;</pre>
      */
     @Bean
-    SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) {
         return http
-                .authorizeHttpRequests(authorize -> authorize
-                        // Public endpoints
+                .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/actuator/**", "/v3/api-docs/**", "/swagger-ui/**",
                                 "/scalar/**", "/error").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/customers").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/users").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
                         .anyRequest().authenticated())
-                // Configure JWT Resource Server for token validation
-                // Note: Despite the name "oauth2ResourceServer", this doesn't require OAuth2 Authorization Server.
-                // It's Spring Security's standard JWT validation infrastructure that works with any JWT tokens.
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt
                                 .decoder(jwtDecoder())
                                 .jwtAuthenticationConverter(jwtAuthenticationConverter()))
-                        // Custom exception handlers for authentication/authorization failures
                         .authenticationEntryPoint(securityExceptionHandlers)
                         .accessDeniedHandler(securityExceptionHandlers))
-                // Stateless session management (no session storage)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 // Disable CSRF for stateless API (JWT tokens are CSRF-resistant)
