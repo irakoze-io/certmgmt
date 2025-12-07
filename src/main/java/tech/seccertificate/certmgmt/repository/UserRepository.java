@@ -15,13 +15,11 @@ import java.util.UUID;
  * All operations are scoped to the current tenant schema set in TenantContext.
  */
 @Repository
-public interface UserRepository extends JpaRepository<User, Long>, UserRepositoryCustom {
+public interface UserRepository extends JpaRepository<User, UUID>, UserRepositoryCustom {
 
     Optional<User> findByEmail(String email);
 
     Optional<User> findByKeycloakId(String keycloakId);
-
-    Optional<User> findByUuid(UUID uuid);
 
     List<User> findByActiveTrue();
 

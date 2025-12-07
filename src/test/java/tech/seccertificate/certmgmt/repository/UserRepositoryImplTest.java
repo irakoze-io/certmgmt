@@ -48,7 +48,7 @@ class UserRepositoryImplTest {
     @BeforeEach
     void setUp() {
         testUser = new User();
-        testUser.setId(1L);
+        testUser.setId(UUID.randomUUID());
         testUser.setEmail("test@example.com");
         testUser.setKeycloakId(UUID.randomUUID().toString());
         testUser.setFirstName("Test");

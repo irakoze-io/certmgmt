@@ -6,8 +6,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.GenerationTime;
-import org.hibernate.annotations.Generated;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
@@ -22,12 +20,8 @@ import java.util.UUID;
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    private Long id;
-
-    @Generated(GenerationTime.INSERT)
-    @Column(name = "uuid", unique = true, nullable = false, updatable = false, columnDefinition = "UUID DEFAULT uuid_generate_v4()")
-    private UUID uuid;
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
 
     @Column(name = "customer_id", nullable = false)
     private Long customerId;

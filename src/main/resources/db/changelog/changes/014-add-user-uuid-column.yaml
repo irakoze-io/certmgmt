@@ -5,45 +5,19 @@ databaseChangeLog:
       changes:
         - sql:
             sql: |
-              -- Add UUID column to users table in all existing tenant schemas
-              -- This migration adds a UUID column to the users table for external API identification
-              -- and to support AuditLog.userId references
-              
-              DO $$
-              DECLARE
-                  schema_record RECORD;
-              BEGIN
-                  -- Loop through all tenant schemas from the customer table
-                  FOR schema_record IN 
-                      SELECT tenant_schema FROM public.customer WHERE tenant_schema IS NOT NULL
-                  LOOP
-                      -- Add UUID column if it doesn't exist
-                      EXECUTE format('
-                          ALTER TABLE %I.users 
-                          ADD COLUMN IF NOT EXISTS uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4()',
-                          schema_record.tenant_schema);
-                      
-                      -- Create index on UUID column for faster lookups
-                      EXECUTE format('
-                          CREATE INDEX IF NOT EXISTS idx_%I_users_uuid ON %I.users(uuid)',
-                          schema_record.tenant_schema, schema_record.tenant_schema);
-                  END LOOP;
-              END $$;
-            splitStatements: false
-            stripComments: false
-        - sql:
-            sql: |
-              -- Update tenant schema function to include UUID column in users table
+              -- Update tenant schema function to change users table primary key from BIGSERIAL to UUID
+              -- Changes:
+              -- 1. Changed id column from BIGSERIAL to UUID PRIMARY KEY DEFAULT uuid_generate_v4()
+              -- 2. This matches the User entity which now uses UUID as the primary key
               CREATE OR REPLACE FUNCTION create_tenant_schema(schema_name VARCHAR)
               RETURNS VOID AS $function$
               BEGIN
                   EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I', schema_name);
 
-                  -- Users table (updated: added uuid UUID column)
+                  -- Users table (updated: id changed from BIGSERIAL to UUID)
                   EXECUTE format('
                       CREATE TABLE %I.users (
-                          id BIGSERIAL PRIMARY KEY,
-                          uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+                          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                           customer_id BIGINT NOT NULL,
                           email VARCHAR(75) UNIQUE NOT NULL,
                           keycloak_id VARCHAR(75) UNIQUE NOT NULL,
@@ -139,7 +113,6 @@ databaseChangeLog:
                   -- Create indexes
                   EXECUTE format('CREATE INDEX idx_%I_users_customer ON %I.users(customer_id)', schema_name, schema_name);
                   EXECUTE format('CREATE INDEX idx_%I_users_email ON %I.users(email)', schema_name, schema_name);
-                  EXECUTE format('CREATE INDEX idx_%I_users_uuid ON %I.users(uuid)', schema_name, schema_name);
                   EXECUTE format('CREATE INDEX idx_%I_template_customer ON %I.template(customer_id)', schema_name, schema_name);
                   EXECUTE format('CREATE INDEX idx_%I_template_code ON %I.template(code)', schema_name, schema_name);
                   EXECUTE format('CREATE INDEX idx_%I_cert_number ON %I.certificate(certificate_number)', schema_name, schema_name);
@@ -153,18 +126,4 @@ databaseChangeLog:
             splitStatements: false
             stripComments: false
       rollback:
-        sql: |
-          -- Rollback: Remove UUID column from all tenant schemas
-          DO $$
-          DECLARE
-              schema_record RECORD;
-          BEGIN
-              FOR schema_record IN 
-                  SELECT tenant_schema FROM public.customer WHERE tenant_schema IS NOT NULL
-              LOOP
-                  EXECUTE format('ALTER TABLE %I.users DROP COLUMN IF EXISTS uuid', schema_record.tenant_schema);
-              END LOOP;
-          END $$;
-          
-          -- Revert tenant schema function to previous version (without UUID)
-          DROP FUNCTION IF EXISTS create_tenant_schema(VARCHAR);
+        sql: DROP FUNCTION IF EXISTS create_tenant_schema(VARCHAR);
