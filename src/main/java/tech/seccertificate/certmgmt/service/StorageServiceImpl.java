@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Implementation of StorageService using MinIO client.
  * Provides operations for uploading, downloading, and managing files in MinIO/S3 storage.
- * 
+ *
  * <p>This service handles:
  * <ul>
  *   <li>PDF certificate uploads</li>
@@ -118,8 +118,8 @@ public class StorageServiceImpl implements StorageService {
                 bucketName, objectPath, expirationMinutes);
 
         // Use default expiration if not specified or invalid
-        int effectiveExpiration = expirationMinutes > 0 
-                ? expirationMinutes 
+        int effectiveExpiration = expirationMinutes > 0
+                ? expirationMinutes
                 : storageConfig.getSignedUrlExpirationMinutes();
 
         // MinIO has a maximum presigned URL expiration of 7 days
@@ -136,7 +136,7 @@ public class StorageServiceImpl implements StorageService {
                     .expiry(effectiveExpiration, TimeUnit.MINUTES)
                     .build());
 
-            log.info("Signed URL generated for {}/{} with expiration {} minutes", 
+            log.info("Signed URL generated for {}/{} with expiration {} minutes",
                     bucketName, objectPath, effectiveExpiration);
             return url;
         } catch (Exception e) {
@@ -150,19 +150,19 @@ public class StorageServiceImpl implements StorageService {
         log.debug("Checking if file exists in bucket: {}, path: {}", bucketName, objectPath);
 
         try {
-            minioClient.statObject(StatObjectArgs.builder()
+            var obj = minioClient.statObject(StatObjectArgs.builder()
                     .bucket(bucketName)
                     .object(objectPath)
                     .build());
 
-            log.debug("File exists: {}/{}", bucketName, objectPath);
+            log.debug("File exists: {}/{} - Last Modified {}", bucketName, objectPath, obj.lastModified());
             return true;
         } catch (ErrorResponseException e) {
             if (e.errorResponse().code().equals("NoSuchKey")) {
                 log.debug("File does not exist: {}/{}", bucketName, objectPath);
                 return false;
             }
-            log.error("Failed to check file existence for {}/{}: {}", bucketName, objectPath, e.getMessage());
+            log.error("Failed to check file existence for file {}/{}: {}", bucketName, objectPath, e.getMessage());
             throw StorageException.existsCheckFailed(objectPath, e);
         } catch (Exception e) {
             log.error("Failed to check file existence for {}/{}: {}", bucketName, objectPath, e.getMessage());

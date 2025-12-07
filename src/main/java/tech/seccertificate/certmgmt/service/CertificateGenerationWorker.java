@@ -99,22 +99,11 @@ public class CertificateGenerationWorker {
                     .orElseThrow(() -> new IllegalArgumentException(
                             "Template version not found: " + certificate.getTemplateVersionId()));
 
-            var pdfBytes = pdfGenerationService.generatePdf(templateVersion, certificate);
+            // Step 1: Generate initial PDF to calculate hash
+            var initialPdfBytes = pdfGenerationService.generatePdf(templateVersion, certificate);
+            var hashValue = generateHashForPdf(initialPdfBytes);
 
-            var storagePath = buildStoragePath(tenantSchema, certificateId);
-            var bucketName = storageService.getDefaultBucketName();
-
-            storageService.ensureBucketExists(bucketName);
-            storageService.uploadFile(
-                    bucketName,
-                    storagePath,
-                    pdfBytes.toByteArray(),
-                    "application/pdf"
-            );
-
-            var hashValue = generateHashForPdf(pdfBytes);
-
-            certificate.setStoragePath(storagePath);
+            // Step 2: Save hash to database (needed for PDF regeneration with hash embedded)
             certificate.setSignedHash(hashValue);
             var updatedCertificate = certificateService.updateCertificate(certificate);
             var certificateHash = CertificateHash.builder()
@@ -122,8 +111,26 @@ public class CertificateGenerationWorker {
                     .hashAlgorithm("SHA-256")
                     .hashValue(hashValue)
                     .build();
-
             certificateHashRepository.save(certificateHash);
+
+            // Step 3: Regenerate PDF with hash and QR code embedded
+            // Now that hash is saved, it will be available in template context
+            var finalPdfBytes = pdfGenerationService.generatePdf(templateVersion, updatedCertificate);
+
+            // Step 4: Upload final PDF with hash embedded
+            var storagePath = buildStoragePath(tenantSchema, certificateId);
+            var bucketName = storageService.getDefaultBucketName();
+
+            storageService.ensureBucketExists(bucketName);
+            storageService.uploadFile(
+                    bucketName,
+                    storagePath,
+                    finalPdfBytes.toByteArray(),
+                    "application/pdf"
+            );
+
+            certificate.setStoragePath(storagePath);
+            certificateService.updateCertificate(certificate);
 
             certificateService.markAsIssued(certificateId, null);
 

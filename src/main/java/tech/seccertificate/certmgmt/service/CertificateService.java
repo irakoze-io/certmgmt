@@ -267,4 +267,14 @@ public interface CertificateService {
      * @throws IllegalArgumentException if certificate not found or storage path is missing
      */
     String getCertificateDownloadUrl(UUID certificateId, Integer expirationMinutes);
+
+    /**
+     * Get QR code verification URL for a certificate.
+     * Returns a URL that can be encoded in a QR code for certificate verification.
+     *
+     * @param certificateId The certificate ID
+     * @return The verification URL for QR code
+     * @throws IllegalArgumentException if certificate not found or hash is missing
+     */
+    String getQrCodeVerificationUrl(UUID certificateId);
 }

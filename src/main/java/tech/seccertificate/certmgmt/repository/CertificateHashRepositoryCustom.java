@@ -11,5 +11,7 @@ public interface CertificateHashRepositoryCustom {
 
     Optional<CertificateHash> findByCertificateIdInSchema(String tenantSchema, UUID certificateId);
 
+    Optional<CertificateHash> findByHashValueInSchema(String tenantSchema, String hashValue);
+
     CertificateHash saveInSchema(String tenantSchema, CertificateHash certificateHash);
 }
