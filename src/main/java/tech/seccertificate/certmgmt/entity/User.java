@@ -32,6 +32,9 @@ public class User {
     @Column(name = "keycloak_id", unique = true, nullable = false, length = 75)
     private String keycloakId;
 
+    @Column(nullable = false, length = 255)
+    private String password;
+
     @Column(name = "first_name", length = 100)
     private String firstName;
 

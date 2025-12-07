@@ -233,7 +233,11 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
                path.startsWith("/swagger-ui/") ||
                path.equals("/swagger-ui.html") ||
                path.equals("/scalar") ||
-               path.startsWith("/scalar/");
+               path.startsWith("/scalar/") ||
+               path.startsWith("/oauth2/") ||
+               path.startsWith("/.well-known/") ||
+               path.equals("/login") ||
+               path.startsWith("/login/");
     }
 
     /**
