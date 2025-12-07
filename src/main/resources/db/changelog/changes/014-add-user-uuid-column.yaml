@@ -16,7 +16,7 @@ databaseChangeLog:
               BEGIN
                   EXECUTE format('CREATE SCHEMA IF NOT EXISTS %I', schema_name);
 
-                  -- Users table (updated: id changed from BIGSERIAL to UUID)
+                  -- Users table (updated: id changed from BIGSERIAL to UUID, added password column)
                   EXECUTE format('
                       CREATE TABLE %I.users (
                           id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
