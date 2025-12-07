@@ -12,13 +12,16 @@ import org.thymeleaf.templatemode.TemplateMode;
 import tech.seccertificate.certmgmt.entity.Certificate;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
 import tech.seccertificate.certmgmt.exception.PdfGenerationException;
+import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
 
 import jakarta.annotation.PostConstruct;
 
+import javax.imageio.ImageIO;
 import java.io.ByteArrayOutputStream;
 import java.io.StringWriter;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -44,6 +47,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
     private final TemplateEngine templateEngine;
     private final ObjectMapper objectMapper;
     private final CertificateTemplateResolver certificateTemplateResolver;
+    private final QrCodeService qrCodeService;
+    private final CertificateHashRepository certificateHashRepository;
 
     @PostConstruct
     public void configureTemplateEngine() {
@@ -105,6 +110,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
                 renderedHtml = injectCssStyles(renderedHtml, templateVersion.getCssStyles());
             }
 
+            renderedHtml = appendVerificationFooter(renderedHtml, context, certificate);
+
             log.debug("HTML rendered successfully for certificate ID: {}", certificate.getId());
             return renderedHtml;
         } catch (PdfGenerationException e) {
@@ -164,7 +171,81 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         context.setVariable("currentTime", formatTime(now));
         context.setVariable("currentDateTime", formatDateTime(now));
 
+        // Add certificate hash and QR code for verification (if hash exists)
+        addVerificationDataToContext(context, certificate);
+
         return context;
+    }
+
+    /**
+     * Add certificate hash and QR code verification data to template context.
+     * This enables templates to display verification information.
+     */
+    private void addVerificationDataToContext(Context context, Certificate certificate) {
+        try {
+            var certificateHashOpt = certificateHashRepository.findByCertificateId(certificate.getId());
+            
+            if (certificateHashOpt.isPresent()) {
+                var certificateHash = certificateHashOpt.get();
+                var hash = certificateHash.getHashValue();
+                var baseUrl = getBaseUrl();
+                var verificationUrl = baseUrl + "/api/certificates/verify/" + hash;
+                
+                // Add hash to context
+                context.setVariable("certificateHash", hash);
+                context.setVariable("verificationUrl", verificationUrl);
+                
+                // Generate QR code image as base64 data URI
+                try {
+                    var qrCodeDataUri = generateQrCodeDataUri(verificationUrl);
+                    context.setVariable("qrCodeImage", qrCodeDataUri);
+                    log.debug("Added QR code and hash to template context for certificate {}", certificate.getId());
+                } catch (Exception e) {
+                    log.warn("Failed to generate QR code for certificate {}, continuing without QR code", 
+                            certificate.getId(), e);
+                    // Continue without QR code - hash will still be available
+                }
+            } else {
+                log.debug("No hash found for certificate {}, verification data not added", certificate.getId());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to add verification data to context for certificate {}: {}", 
+                    certificate.getId(), e.getMessage());
+            // Continue without verification data - certificate will still be generated
+        }
+    }
+
+    /**
+     * Generate QR code as base64 data URI for embedding in HTML.
+     */
+    private String generateQrCodeDataUri(String verificationUrl) {
+        try {
+            var qrCodeImage = qrCodeService.generateQrCode(verificationUrl, 200, 200);
+            var baos = new ByteArrayOutputStream();
+            ImageIO.write(qrCodeImage, "PNG", baos);
+            var base64 = Base64.getEncoder().encodeToString(baos.toByteArray());
+            return "data:image/png;base64," + base64;
+        } catch (Exception e) {
+            log.error("Failed to generate QR code data URI for URL: {}", verificationUrl, e);
+            throw new RuntimeException("Failed to generate QR code", e);
+        }
+    }
+
+    /**
+     * Get base URL for generating verification URLs.
+     * Uses configuration property or defaults to localhost:8080.
+     */
+    private String getBaseUrl() {
+        // Try to get from environment or configuration
+        String baseUrl = System.getenv("APP_BASE_URL");
+        if (baseUrl == null || baseUrl.isEmpty()) {
+            baseUrl = System.getProperty("app.base-url");
+        }
+        if (baseUrl == null || baseUrl.isEmpty()) {
+            baseUrl = "http://localhost:8080";
+        }
+        // Remove trailing slash if present
+        return baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
     }
 
     /**
@@ -329,5 +410,72 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         } else {
             return "<style>\n" + trimmedCss + "\n</style>\n" + html;
         }
+    }
+
+    /**
+     * Automatically append verification footer to all certificates.
+     * The footer includes QR code and verification URL for certificate verification.
+     * Only appends footer if the certificate has verification data (hash).
+     *
+     * @param html The rendered HTML content
+     * @param context The Thymeleaf context containing template variables
+     * @param certificate The certificate entity
+     * @return HTML with verification footer appended
+     */
+    private String appendVerificationFooter(@NotNull String html, Context context, Certificate certificate) {
+        try {
+            // Check if verification data is available in context
+            Object verificationUrlObj = context.getVariable("verificationUrl");
+            Object qrCodeImageObj = context.getVariable("qrCodeImage");
+
+            if (verificationUrlObj == null || qrCodeImageObj == null) {
+                log.debug("No verification data available for certificate {}, skipping footer", certificate.getId());
+                return html;
+            }
+
+            var verificationUrl = verificationUrlObj.toString();
+            var qrCodeImage = qrCodeImageObj.toString();
+
+            var footerHtml = generateVerificationFooterHtml(verificationUrl, qrCodeImage);
+
+            if (html.contains("</body>")) {
+                return html.replace("</body>", footerHtml + "\n</body>");
+            } else if (html.contains("</html>")) {
+                return html.replace("</html>", footerHtml + "\n</html>");
+            } else {
+                return html + "\n" + footerHtml;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to append verification footer for certificate {}, continuing without footer: {}", 
+                    certificate.getId(), e.getMessage());
+
+            // Let the application continue without footer - certificate will still be generated
+            return html;
+        }
+    }
+
+    /**
+     * Generate HTML for verification footer.
+     * Includes QR code image and verification URL text.
+     *
+     * @param verificationUrl The verification URL
+     * @param qrCodeImage Base64 data URI of QR code image
+     * @return HTML string for verification footer
+     */
+    private String generateVerificationFooterHtml(String verificationUrl, String qrCodeImage) {
+        return """
+                <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #e0e0e0; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #666;">
+                    <div style="margin-bottom: 15px;">
+                        <span style="font-weight: bold; color: #333;">Scan to Verify</span>
+                    </div>
+                    <div style="margin-bottom: 15px;">
+                        <img src="%s" alt="QR Code" style="width: 150px; height: 150px; display: block; margin: 0 auto;" />
+                    </div>
+                    <div style="margin-top: 10px; color: #555;">
+                        <span>or visit </span>
+                        <a href="%s" style="color: #0066cc; text-decoration: none; word-break: break-all;">%s</a>
+                    </div>
+                </div>
+                """.formatted(qrCodeImage, verificationUrl, verificationUrl);
     }
 }
