@@ -44,6 +44,7 @@ public class CertificateServiceImpl implements CertificateService {
     private final PdfGenerationService pdfGenerationService;
     private final StorageService storageService;
     private final MessageQueueService messageQueueService;
+    private final FieldSchemaValidator fieldSchemaValidator;
 
     @Override
     @Transactional
@@ -498,6 +499,17 @@ public class CertificateServiceImpl implements CertificateService {
         // Validate recipient data
         if (certificate.getRecipientData() == null || certificate.getRecipientData().isEmpty()) {
             throw new IllegalArgumentException("Recipient data is required");
+        }
+
+        // Validate recipient data against field schema
+        try {
+            fieldSchemaValidator.validateRecipientData(
+                    certificate.getRecipientData(), 
+                    templateVersion.getFieldSchema()
+            );
+        } catch (IllegalArgumentException e) {
+            log.error("Recipient data validation failed for certificate: {}", e.getMessage());
+            throw e;
         }
 
         // Validate certificate number format if provided

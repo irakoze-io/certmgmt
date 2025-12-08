@@ -75,3 +75,4 @@ logback-spring.xml
 .DS_Store
 ./.DS_Store
 /.fleet
+.aider*
