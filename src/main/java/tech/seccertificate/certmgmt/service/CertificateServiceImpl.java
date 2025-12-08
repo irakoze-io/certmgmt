@@ -1,5 +1,6 @@
 package tech.seccertificate.certmgmt.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -24,7 +25,7 @@ import java.util.*;
  * Implementation of CertificateService.
  * Handles certificate generation (sync + async), CRUD operations, status management,
  * and certificate verification.
- * 
+ *
  * <p>All operations require tenant context to be set (via TenantResolutionFilter
  * or programmatically using TenantService).
  */
@@ -45,11 +46,12 @@ public class CertificateServiceImpl implements CertificateService {
     private final StorageService storageService;
     private final MessageQueueService messageQueueService;
     private final FieldSchemaValidator fieldSchemaValidator;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional
     public Certificate generateCertificate(Certificate certificate) {
-        log.info("Generating certificate synchronously for template version: {}", 
+        log.info("Generating certificate synchronously for template version: {}",
                 certificate.getTemplateVersionId());
 
         tenantSchemaValidator.validateTenantSchema("generateCertificate");
@@ -93,7 +95,7 @@ public class CertificateServiceImpl implements CertificateService {
         try {
             // Save certificate with PENDING status
             var savedCertificate = certificateRepository.save(certificate);
-            log.info("Certificate created with ID: {} and status: {}", 
+            log.info("Certificate created with ID: {} and status: {}",
                     savedCertificate.getId(), savedCertificate.getStatus());
 
             // TODO: Implement synchronous PDF generation
@@ -103,7 +105,7 @@ public class CertificateServiceImpl implements CertificateService {
             // 4. Upload PDF to S3/MinIO
             // 5. Generate hash and sign
             // 6. Update certificate status to ISSUED
-            
+
             // For now, mark as PROCESSING (will be updated by PDF generation)
             savedCertificate.setStatus(Certificate.CertificateStatus.PROCESSING);
             savedCertificate = certificateRepository.save(savedCertificate);
@@ -121,7 +123,7 @@ public class CertificateServiceImpl implements CertificateService {
     @Override
     @Transactional
     public Certificate generateCertificateAsync(Certificate certificate) {
-        log.info("Generating certificate asynchronously for template version: {}", 
+        log.info("Generating certificate asynchronously for template version: {}",
                 certificate.getTemplateVersionId());
 
         tenantSchemaValidator.validateTenantSchema("generateCertificateAsync");
@@ -417,17 +419,37 @@ public class CertificateServiceImpl implements CertificateService {
                 ));
 
         certificate.setStatus(Certificate.CertificateStatus.FAILED);
-        
-        // Store error message in metadata
-        // TODO: Parse existing metadata JSON and add error message
+
         if (errorMessage != null && !errorMessage.isEmpty()) {
-            // For now, append to metadata (simplified - should parse JSON properly)
-            var currentMetadata = certificate.getMetadata();
-            if (currentMetadata == null || currentMetadata.isEmpty()) {
-                certificate.setMetadata("{\"error\":\"" + errorMessage + "\"}");
-            } else {
-                // Simple append (should use proper JSON parsing)
-                certificate.setMetadata(currentMetadata.replace("}", ",\"error\":\"" + errorMessage + "\"}"));
+            try {
+                var currentMetadata = certificate.getMetadata();
+                Map<String, Object> metadataMap;
+
+                if (currentMetadata == null || currentMetadata.trim().isEmpty()) {
+                    metadataMap = new HashMap<>();
+                } else {
+                    try {
+                        metadataMap = objectMapper
+                                .readValue(currentMetadata, objectMapper
+                                        .getTypeFactory()
+                                        .constructMapType(Map.class, String.class, Object.class)
+                        );
+                    } catch (Exception e) {
+                        log.warn("Failed to parse existing metadata JSON for certificate {}, creating new metadata: {}",
+                                certificateId, e.getMessage());
+                        metadataMap = new HashMap<>();
+                    }
+                }
+                metadataMap.put("error", errorMessage);
+                metadataMap.put("errorTimestamp", LocalDateTime.now().toString());
+
+                certificate.setMetadata(objectMapper.writeValueAsString(metadataMap));
+            } catch (Exception e) {
+                log.error("Failed to update metadata with error message for certificate {}: {}",
+                        certificateId, e.getMessage(), e);
+
+                certificate.setMetadata("{\"error\":\"" +
+                        errorMessage.replace("\"", "\\\"") + "\"}");
             }
         }
 
@@ -470,11 +492,11 @@ public class CertificateServiceImpl implements CertificateService {
         // Example: JAVA-20240115-A3B2C1
         var datePrefix = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         var randomSuffix = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
-        
+
         if (templateCode != null && !templateCode.isEmpty()) {
             return String.format("%s-%s-%s", templateCode.toUpperCase(), datePrefix, randomSuffix);
         }
-        
+
         return String.format("CERT-%s-%s", datePrefix, randomSuffix);
     }
 
@@ -504,7 +526,7 @@ public class CertificateServiceImpl implements CertificateService {
         // Validate recipient data against field schema
         try {
             fieldSchemaValidator.validateRecipientData(
-                    certificate.getRecipientData(), 
+                    certificate.getRecipientData(),
                     templateVersion.getFieldSchema()
             );
         } catch (IllegalArgumentException e) {
@@ -560,7 +582,7 @@ public class CertificateServiceImpl implements CertificateService {
 
             var bucketName = storageService.getDefaultBucketName();
             if (!storageService.fileExists(bucketName, certificate.getStoragePath())) {
-                log.warn("Certificate {} verification failed: PDF not found in storage at {}", 
+                log.warn("Certificate {} verification failed: PDF not found in storage at {}",
                         certificateId, certificate.getStoragePath());
                 return false;
             }
@@ -574,8 +596,8 @@ public class CertificateServiceImpl implements CertificateService {
                 var hashMatches = constantTimeEquals(computedHash, storedHash);
 
                 if (!hashMatches) {
-                    log.warn("Certificate {} verification failed: hash mismatch. Stored: {}, Computed: {}", 
-                            certificateId, storedHash.substring(0, Math.min(20, storedHash.length())), 
+                    log.warn("Certificate {} verification failed: hash mismatch. Stored: {}, Computed: {}",
+                            certificateId, storedHash.substring(0, Math.min(20, storedHash.length())),
                             computedHash.substring(0, Math.min(20, computedHash.length())));
                     return false;
                 }
@@ -594,7 +616,7 @@ public class CertificateServiceImpl implements CertificateService {
     public Optional<Certificate> verifyCertificateByHash(String hash) {
         // This is a public endpoint, so we don't validate tenant schema
         // Search across all tenant schemas to find the certificate with matching hash
-        
+
         if (hash == null || hash.trim().isEmpty()) {
             log.warn("Hash verification failed: hash is null or empty");
             return Optional.empty();
@@ -602,36 +624,36 @@ public class CertificateServiceImpl implements CertificateService {
 
         // Get all active customers to search their tenant schemas
         var customers = customerService.findActiveCustomers();
-        
+
         log.debug("Searching for certificate with hash across {} tenant schemas", customers.size());
-        
+
         // Search each tenant schema for the hash
         for (var customer : customers) {
             try {
                 var tenantSchema = customer.getTenantSchema();
                 var certificateHashOpt = certificateHashRepository
                         .findByHashValueInSchema(tenantSchema, hash);
-                
+
                 if (certificateHashOpt.isPresent()) {
                     var certificateHash = certificateHashOpt.get();
                     var certificate = certificateHash.getCertificate();
-                    
+
                     // Verify certificate is issued and valid
                     if (certificate.getStatus() == Certificate.CertificateStatus.ISSUED) {
                         log.info("Certificate found with hash in tenant schema: {}", tenantSchema);
                         return Optional.of(certificate);
                     } else {
-                        log.debug("Certificate found but not issued (status: {}) in schema: {}", 
+                        log.debug("Certificate found but not issued (status: {}) in schema: {}",
                                 certificate.getStatus(), tenantSchema);
                     }
                 }
             } catch (Exception e) {
-                log.warn("Error searching tenant schema {} for hash: {}", 
+                log.warn("Error searching tenant schema {} for hash: {}",
                         customer.getTenantSchema(), e.getMessage());
                 // Continue searching other schemas
             }
         }
-        
+
         log.debug("No certificate found with hash: {}", hash.substring(0, Math.min(20, hash.length())));
         return Optional.empty();
     }
@@ -743,16 +765,16 @@ public class CertificateServiceImpl implements CertificateService {
         // Check monthly certificate limit
         var currentMonthStart = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
         var currentMonthEnd = currentMonthStart.plusMonths(1).minusSeconds(1);
-        
+
         // Get all certificates for customer issued this month
         var allCertificates = certificateRepository.findByCustomerId(customerId);
         var certificatesThisMonth = allCertificates.stream()
-                .filter(cert -> cert.getIssuedAt() != null 
+                .filter(cert -> cert.getIssuedAt() != null
                         && !cert.getIssuedAt().isBefore(currentMonthStart)
                         && !cert.getIssuedAt().isAfter(currentMonthEnd))
                 .count();
 
-        if (customer.getMaxCertificatesPerMonth() != null 
+        if (customer.getMaxCertificatesPerMonth() != null
                 && certificatesThisMonth >= customer.getMaxCertificatesPerMonth()) {
             throw new IllegalArgumentException(
                     String.format("Customer %d has reached monthly certificate limit (%d)",
@@ -767,20 +789,20 @@ public class CertificateServiceImpl implements CertificateService {
      */
     private void processCertificateGeneration(Certificate certificate) {
         log.info("Processing certificate generation for ID: {}", certificate.getId());
-        
+
         try {
             // 1. Load template version
             var templateVersion = getTemplateVersion(certificate.getTemplateVersionId());
-            
+
             // 2. Generate initial PDF to calculate hash
             log.debug("Generating initial PDF for certificate: {}", certificate.getId());
             var initialPdfOutputStream = pdfGenerationService.generatePdf(templateVersion, certificate);
             var initialPdfBytes = initialPdfOutputStream.toByteArray();
-            
+
             // 3. Generate hash from PDF content
             var hashValue = generateHashFromPdfContent(initialPdfBytes);
             certificate.setSignedHash(hashValue);
-            
+
             // 4. Create certificate hash record (needed for PDF regeneration with hash embedded)
             var certificateHash = CertificateHash.builder()
                     .certificate(certificate)
@@ -788,17 +810,17 @@ public class CertificateServiceImpl implements CertificateService {
                     .hashValue(hashValue)
                     .build();
             certificateHashRepository.save(certificateHash);
-            
+
             // 5. Regenerate PDF with hash and QR code embedded
             // Now that hash is saved, it will be available in template context
             log.debug("Regenerating PDF with hash embedded for certificate: {}", certificate.getId());
             var finalPdfOutputStream = pdfGenerationService.generatePdf(templateVersion, certificate);
             var finalPdfBytes = finalPdfOutputStream.toByteArray();
-            
+
             // 6. Generate storage path
             var storagePath = generateStoragePath(certificate);
             certificate.setStoragePath(storagePath);
-            
+
             // 7. Upload final PDF with hash embedded to MinIO/S3
             log.debug("Uploading PDF with hash embedded to storage: {}", storagePath);
             storageService.uploadFile(
@@ -807,12 +829,12 @@ public class CertificateServiceImpl implements CertificateService {
                     finalPdfBytes,
                     PDF_CONTENT_TYPE
             );
-            
+
             // 8. Mark as issued
             certificate.setStatus(Certificate.CertificateStatus.ISSUED);
             certificateRepository.save(certificate);
-            
-            log.info("Certificate generation completed for ID: {}, storage path: {}", 
+
+            log.info("Certificate generation completed for ID: {}, storage path: {}",
                     certificate.getId(), storagePath);
         } catch (Exception e) {
             log.error("Failed to process certificate generation for ID: {}", certificate.getId(), e);
@@ -838,7 +860,7 @@ public class CertificateServiceImpl implements CertificateService {
 
     /**
      * Generate SHA-256 hash from actual PDF content.
-     * 
+     *
      * @param pdfContent The PDF file content as byte array
      * @return Base64-encoded SHA-256 hash
      */
@@ -854,7 +876,7 @@ public class CertificateServiceImpl implements CertificateService {
 
     /**
      * Constant-time string comparison to prevent timing attacks.
-     * 
+     *
      * @param a First string
      * @param b Second string
      * @return true if strings are equal, false otherwise

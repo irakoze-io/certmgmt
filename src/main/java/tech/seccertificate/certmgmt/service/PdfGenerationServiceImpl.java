@@ -63,7 +63,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
 
     @Override
     public ByteArrayOutputStream generatePdf(TemplateVersion templateVersion, Certificate certificate) {
-        log.info("Generating PDF for certificate ID: {}", certificate.getId());
+        log.info("Generating PDF for certificate ID: {}, Template Version ID: {}",
+                certificate.getId(), templateVersion.getId());
 
         try {
             var htmlContent = renderHtml(templateVersion, certificate);
@@ -73,10 +74,10 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
             var builder = new PdfRendererBuilder();
             builder.withHtmlContent(htmlContent, null);
             builder.toStream(pdfOutputStream);
-            
+
             // Apply template version settings to PDF builder
             applyPdfSettings(builder, templateVersion);
-            
+
             builder.useFastMode();
             builder.run();
 
@@ -87,7 +88,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         } catch (PdfGenerationException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Failed to generate PDF for certificate ID: {}", certificate.getId(), e);
+            log.error("Failed to generate PDF for certificate ID: {}, Template Version ID: {}",
+                    certificate.getId(), templateVersion.getId(), e);
             throw new PdfGenerationException(
                     "Failed to generate PDF for certificate: " + certificate.getId(), e);
         }
@@ -194,24 +196,24 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
     private void addVerificationDataToContext(Context context, Certificate certificate) {
         try {
             var certificateHashOpt = certificateHashRepository.findByCertificateId(certificate.getId());
-            
+
             if (certificateHashOpt.isPresent()) {
                 var certificateHash = certificateHashOpt.get();
                 var hash = certificateHash.getHashValue();
                 var baseUrl = getBaseUrl();
                 var verificationUrl = baseUrl + "/api/certificates/verify/" + hash;
-                
+
                 // Add hash to context
                 context.setVariable("certificateHash", hash);
                 context.setVariable("verificationUrl", verificationUrl);
-                
+
                 // Generate QR code image as base64 data URI
                 try {
                     var qrCodeDataUri = generateQrCodeDataUri(verificationUrl);
                     context.setVariable("qrCodeImage", qrCodeDataUri);
                     log.debug("Added QR code and hash to template context for certificate {}", certificate.getId());
                 } catch (Exception e) {
-                    log.warn("Failed to generate QR code for certificate {}, continuing without QR code", 
+                    log.warn("Failed to generate QR code for certificate {}, continuing without QR code",
                             certificate.getId(), e);
                     // Continue without QR code - hash will still be available
                 }
@@ -219,7 +221,7 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
                 log.debug("No hash found for certificate {}, verification data not added", certificate.getId());
             }
         } catch (Exception e) {
-            log.warn("Failed to add verification data to context for certificate {}: {}", 
+            log.warn("Failed to add verification data to context for certificate {}: {}",
                     certificate.getId(), e.getMessage());
             // Continue without verification data - certificate will still be generated
         }
@@ -400,7 +402,7 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
     /**
      * Inject CSS styles into HTML content.
      * Adds a <style> tag in the <head> section, or creates one if it doesn't exist.
-     * Author: aider AI
+     * Ensures proper HTML structure with meta charset tag.
      */
     private String injectCssStyles(@NotNull String html, String cssStyles) {
         if (cssStyles == null || cssStyles.trim().isEmpty()) {
@@ -416,9 +418,11 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
                 return html.replace("</head>", "<style>\n" + trimmedCss + "\n</style></head>");
             }
         } else if (html.contains("<html>")) {
-            return html.replace("<html>", "<html><head><style>\n" + trimmedCss + "\n</style></head>");
+            // HTML tag exists but no head, create head with meta charset and style
+            return html.replace("<html>", "<html><head><meta charset=\"UTF-8\" /><style>\n" + trimmedCss + "\n</style></head>");
         } else {
-            return "<style>\n" + trimmedCss + "\n</style>\n" + html;
+            // No HTML structure, wrap with proper HTML structure
+            return "<!DOCTYPE html><html><head><meta charset=\"UTF-8\" /><style>\n" + trimmedCss + "\n</style></head><body>\n" + html + "\n</body></html>";
         }
     }
 
@@ -426,7 +430,7 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
      * Inject PDF page settings as CSS @page rules into HTML content.
      * Converts template version settings (pageSize, orientation, margins) to CSS.
      *
-     * @param html The HTML content
+     * @param html         The HTML content
      * @param settingsJson The settings JSON string from template version
      * @return HTML with @page CSS rules injected
      */
@@ -503,13 +507,13 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
     private String buildMarginCss(Map<String, Object> margins) {
         StringBuilder marginCss = new StringBuilder();
 
-        if (margins.containsKey("top") || margins.containsKey("right") 
+        if (margins.containsKey("top") || margins.containsKey("right")
                 || margins.containsKey("bottom") || margins.containsKey("left")) {
             String top = getStringValue(margins, "top", "0");
             String right = getStringValue(margins, "right", "0");
             String bottom = getStringValue(margins, "bottom", "0");
             String left = getStringValue(margins, "left", "0");
-            
+
             marginCss.append("margin: ").append(top).append(" ")
                     .append(right).append(" ").append(bottom).append(" ").append(left).append(";");
         } else if (margins.containsKey("all")) {
@@ -726,7 +730,7 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         // Convert to points (OpenHTMLtoPDF uses points)
         double widthPoints = convertToPoints(width, unit);
         double heightPoints = convertToPoints(height, unit);
-        
+
         // OpenHTMLtoPDF doesn't directly support custom page sizes via builder API
         // This would need to be handled via CSS @page rules in the HTML
         log.debug("Page dimensions: {}x{} points (applied via CSS)", widthPoints, heightPoints);

@@ -30,7 +30,6 @@ public class TemplateVersion {
     @Column(nullable = false)
     private Integer version;
 
-    @Lob
     @Column(name = "html_content", nullable = false, columnDefinition = "TEXT")
     private String htmlContent;
 
@@ -38,7 +37,6 @@ public class TemplateVersion {
     @Column(name = "field_schema", columnDefinition = "jsonb", nullable = false)
     private String fieldSchema;
 
-    @Lob
     @Column(name = "css_styles", columnDefinition = "TEXT")
     private String cssStyles;
 

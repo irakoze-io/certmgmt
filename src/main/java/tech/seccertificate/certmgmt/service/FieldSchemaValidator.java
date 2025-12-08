@@ -66,8 +66,7 @@ public class FieldSchemaValidator {
                 if (fieldDefinition instanceof Map) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> fieldDef = (Map<String, Object>) fieldDefinition;
-                    
-                    // Check if field is required
+
                     boolean required = getBooleanValue(fieldDef, "required", false);
                     boolean present = recipientMap.containsKey(fieldName);
 
@@ -76,7 +75,6 @@ public class FieldSchemaValidator {
                         continue;
                     }
 
-                    // If field is present, validate its type and constraints
                     if (present) {
                         Object fieldValue = recipientMap.get(fieldName);
                         validateField(fieldName, fieldValue, fieldDef, errors);
@@ -84,15 +82,14 @@ public class FieldSchemaValidator {
                 }
             }
 
-            // Check for extra fields not in schema (warn but don't fail)
             Set<String> schemaFields = schemaMap.keySet();
             Set<String> recipientFields = recipientMap.keySet();
             Set<String> extraFields = new HashSet<>(recipientFields);
             extraFields.removeAll(schemaFields);
-            
+
             if (!extraFields.isEmpty()) {
                 log.debug("Recipient data contains fields not in schema: {}", extraFields);
-                // Don't add to errors - extra fields are allowed but may be ignored
+                // Decision: Don't add to errors - extra fields are allowed but may be ignored
             }
 
             if (!errors.isEmpty()) {
@@ -117,72 +114,62 @@ public class FieldSchemaValidator {
     private void validateField(String fieldName, Object fieldValue, 
                               Map<String, Object> fieldDef, List<String> errors) {
         if (fieldValue == null) {
-            // Null values are only allowed if field is not required
-            // (already checked above)
+            // Since the field is not required, nulls are allowed.
             return;
         }
 
-        // Validate type
-        String expectedType = getStringValue(fieldDef, "type", "string");
-        String actualType = getJavaType(fieldValue);
+        var expectedType = getStringValue(fieldDef, "type", "string");
+        var actualType = getJavaType(fieldValue);
 
         if (!isTypeCompatible(expectedType, actualType)) {
-            errors.add(String.format("Field '%s' has invalid type. Expected: %s, Got: %s", 
+            errors.add(String.format("Field '%s' has invalid type. Expected: %s, Got: %s",
                     fieldName, expectedType, actualType));
             return;
         }
 
-        // Validate string constraints
-        if ("string".equals(expectedType) && fieldValue instanceof String) {
-            String strValue = (String) fieldValue;
-            
-            // Min length
+        if ("string".equals(expectedType) && fieldValue instanceof String value) {
+
             if (fieldDef.containsKey("minLength")) {
                 int minLength = getIntValue(fieldDef, "minLength", 0);
-                if (strValue.length() < minLength) {
-                    errors.add(String.format("Field '%s' is too short. Minimum length: %d", 
+                if (value.length() < minLength) {
+                    errors.add(String.format("Field '%s' is too short. Minimum length: %d",
                             fieldName, minLength));
                 }
             }
 
-            // Max length
             if (fieldDef.containsKey("maxLength")) {
                 int maxLength = getIntValue(fieldDef, "maxLength", Integer.MAX_VALUE);
-                if (strValue.length() > maxLength) {
-                    errors.add(String.format("Field '%s' is too long. Maximum length: %d", 
+                if (value.length() > maxLength) {
+                    errors.add(String.format("Field '%s' is too long. Maximum length: %d",
                             fieldName, maxLength));
                 }
             }
 
-            // Pattern (regex)
             if (fieldDef.containsKey("pattern")) {
                 String pattern = getStringValue(fieldDef, "pattern", null);
-                if (pattern != null && !strValue.matches(pattern)) {
-                    errors.add(String.format("Field '%s' does not match required pattern: %s", 
+                if (pattern != null && !value.matches(pattern)) {
+                    errors.add(String.format("Field '%s' does not match required pattern: %s",
                             fieldName, pattern));
                 }
             }
         }
 
-        // Validate number constraints
-        if (("number".equals(expectedType) || "integer".equals(expectedType)) 
+        if (("number".equals(expectedType) || "integer".equals(expectedType))
                 && (fieldValue instanceof Number)) {
             double numValue = ((Number) fieldValue).doubleValue();
 
-            // Minimum
             if (fieldDef.containsKey("minimum")) {
                 double minimum = getDoubleValue(fieldDef, "minimum", Double.NEGATIVE_INFINITY);
                 if (numValue < minimum) {
-                    errors.add(String.format("Field '%s' is below minimum value: %s", 
+                    errors.add(String.format("Field '%s' is below minimum value: %s",
                             fieldName, minimum));
                 }
             }
 
-            // Maximum
             if (fieldDef.containsKey("maximum")) {
                 double maximum = getDoubleValue(fieldDef, "maximum", Double.POSITIVE_INFINITY);
                 if (numValue > maximum) {
-                    errors.add(String.format("Field '%s' exceeds maximum value: %s", 
+                    errors.add(String.format("Field '%s' exceeds maximum value: %s",
                             fieldName, maximum));
                 }
             }
@@ -199,7 +186,12 @@ public class FieldSchemaValidator {
 
         return switch (expectedType.toLowerCase()) {
             case "string" -> "string".equals(actualType);
-            case "number", "integer" -> "number".equals(actualType) || "integer".equals(actualType);
+            case "number", "integer" ->
+                    "number".equals(actualType) ||
+                            "integer".equals(actualType)
+
+                            /*The value of the number is sent as a string in the field settings*/ ||
+                            "string".equals(actualType);
             case "boolean" -> "boolean".equals(actualType);
             case "array" -> "array".equals(actualType) || "list".equals(actualType);
             case "object" -> "map".equals(actualType) || "object".equals(actualType);
