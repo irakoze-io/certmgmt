@@ -7,6 +7,7 @@ target/
 ### Gradle ###
 .gradle
 build/
+bin/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
@@ -65,6 +66,8 @@ logback-spring.xml
 /INTEGRATION_TESTS_PROGRESS.md
 /TESTCONTAINERS_SETUP.md
 /E2E_TEST_COVERAGE.md
+/FRONTEND_ARCHITECTURE.md
+/UI_Integration.md
 /RABBITMQ_FIX_DOCUMENTATION.md
 /rabbitmq_bug_fix_work.md
 /minio-data/
