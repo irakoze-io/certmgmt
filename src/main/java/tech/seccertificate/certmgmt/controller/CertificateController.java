@@ -51,7 +51,6 @@ public class CertificateController {
     private final CertificateService certificateService;
     private final QrCodeService qrCodeService;
     private final ObjectMapper objectMapper;
-    private final tech.seccertificate.certmgmt.repository.UserRepository userRepository;
 
     /**
      * Generate a certificate (synchronously or asynchronously).
@@ -432,16 +431,13 @@ public class CertificateController {
             }
         }
 
-        // Fetch user to get full name
         String issuedByName = null;
-        if (certificate.getIssuedBy() != null) {
-            issuedByName = userRepository.findById(certificate.getIssuedBy())
-                    .map(user -> {
-                        String firstName = user.getFirstName() != null ? user.getFirstName() : "";
-                        String lastName = user.getLastName() != null ? user.getLastName() : "";
-                        return (firstName + " " + lastName).trim();
-                    })
-                    .orElse(null);
+        if (certificate.getIssuedByUser() != null) {
+            var firstName = certificate.getIssuedByUser().getFirstName() != null ?
+                certificate.getIssuedByUser().getFirstName() : "";
+            var lastName = certificate.getIssuedByUser().getLastName() != null ?
+                certificate.getIssuedByUser().getLastName() : "";
+            issuedByName = (firstName + " " + lastName).trim();
         }
 
         var response = CertificateResponse.builder()

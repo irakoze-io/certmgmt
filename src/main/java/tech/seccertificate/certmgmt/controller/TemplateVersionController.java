@@ -47,7 +47,6 @@ public class TemplateVersionController {
 
     private final TemplateService templateService;
     private final ObjectMapper objectMapper;
-    private final tech.seccertificate.certmgmt.repository.UserRepository userRepository;
 
     /**
      * Create a new template version.
@@ -358,16 +357,14 @@ public class TemplateVersionController {
             }
         }
 
-        // Fetch user to get full name
+        // Get user full name from eagerly fetched relationship (no extra query!)
         String createdByName = null;
-        if (version.getCreatedBy() != null) {
-            createdByName = userRepository.findById(version.getCreatedBy())
-                    .map(user -> {
-                        String firstName = user.getFirstName() != null ? user.getFirstName() : "";
-                        String lastName = user.getLastName() != null ? user.getLastName() : "";
-                        return (firstName + " " + lastName).trim();
-                    })
-                    .orElse(null);
+        if (version.getCreatedByUser() != null) {
+            var firstName = version.getCreatedByUser().getFirstName() != null ?
+                version.getCreatedByUser().getFirstName() : "";
+            var lastName = version.getCreatedByUser().getLastName() != null ?
+                version.getCreatedByUser().getLastName() : "";
+            createdByName = (firstName + " " + lastName).trim();
         }
 
         return TemplateVersionResponse.builder()

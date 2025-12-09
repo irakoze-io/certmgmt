@@ -52,6 +52,10 @@ public class TemplateVersion {
     @Column(name = "created_by", nullable = false)
     private UUID createdBy;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by", insertable = false, updatable = false)
+    private User createdByUser;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
