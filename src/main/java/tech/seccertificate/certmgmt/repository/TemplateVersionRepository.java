@@ -23,6 +23,9 @@ public interface TemplateVersionRepository extends JpaRepository<TemplateVersion
     @Query("SELECT tv FROM TemplateVersion tv LEFT JOIN FETCH tv.createdByUser WHERE tv.template.id = :templateId ORDER BY tv.version DESC")
     List<TemplateVersion> findByTemplate_IdOrderByVersionDesc(@Param("templateId") Long templateId);
 
+    @Query("SELECT tv FROM TemplateVersion tv LEFT JOIN FETCH tv.createdByUser WHERE tv.template.customerId = :customerId ORDER BY tv.template.id, tv.version DESC")
+    List<TemplateVersion> findByTemplate_CustomerId(@Param("customerId") Long customerId);
+
     Optional<TemplateVersion> findFirstByTemplate_IdAndStatusOrderByVersionDesc(Long templateId, TemplateVersion.TemplateVersionStatus status);
 
     long countByTemplate_Id(Long templateId);
