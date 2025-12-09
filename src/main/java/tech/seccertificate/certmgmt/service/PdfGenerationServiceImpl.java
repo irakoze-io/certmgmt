@@ -305,30 +305,48 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
 
     /**
      * Replace simple variables in HTML template (for non-Thymeleaf templates).
-     * Supports {{variableName}} and {{recipient.fieldName}} syntax.
+     * Supports {{variableName}}, {{recipient.fieldName}}, and {{fieldName}} (auto-resolved from recipient) syntax.
      */
     private String replaceSimpleVariables(@NotNull String html, Context context) {
 
         Map<String, Object> variables = new HashMap<>();
-        // for (var varName : context.getVariableNames()) {
-        //     variables.put(varName, context.getVariable(varName));
-        // }
         context.getVariableNames()
                 .forEach(v -> variables.put(v, context.getVariable(v)));
 
         var result = html;
 
+        // First, replace top-level context variables (but skip Map objects like recipient/metadata)
         for (Map.Entry<String, Object> entry : variables.entrySet()) {
             var varName = entry.getKey();
             var value = entry.getValue();
-            var strValue = value != null ? value.toString() : "";
 
+            // Skip Map objects - they'll be handled separately
+            if (value instanceof Map) {
+                continue;
+            }
+
+            var strValue = value != null ? value.toString() : "";
             result = result.replace("{{" + varName + "}}", strValue);
         }
 
+        // Extract recipient and metadata maps for field replacement
+        Map<String, Object> recipient = null;
+        Map<String, Object> metadata = null;
+
         if (variables.containsKey("recipient") && variables.get("recipient") instanceof Map) {
             @SuppressWarnings("unchecked")
-            Map<String, Object> recipient = (Map<String, Object>) variables.get("recipient");
+            Map<String, Object> recipientMap = (Map<String, Object>) variables.get("recipient");
+            recipient = recipientMap;
+        }
+
+        if (variables.containsKey("metadata") && variables.get("metadata") instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> metadataMap = (Map<String, Object>) variables.get("metadata");
+            metadata = metadataMap;
+        }
+
+        // Replace {{recipient.fieldName}} patterns
+        if (recipient != null) {
             for (Map.Entry<String, Object> entry : recipient.entrySet()) {
                 String placeholder = "{{recipient." + entry.getKey() + "}}";
                 String value = entry.getValue() != null ? entry.getValue().toString() : "";
@@ -336,13 +354,36 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
             }
         }
 
-        if (variables.containsKey("metadata") && variables.get("metadata") instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> metadata = (Map<String, Object>) variables.get("metadata");
+        // Replace {{metadata.fieldName}} patterns
+        if (metadata != null) {
             for (Map.Entry<String, Object> entry : metadata.entrySet()) {
                 String placeholder = "{{metadata." + entry.getKey() + "}}";
                 String value = entry.getValue() != null ? entry.getValue().toString() : "";
                 result = result.replace(placeholder, value);
+            }
+        }
+
+        // Finally, replace any remaining {{fieldName}} by auto-resolving from recipient first, then metadata
+        // This allows templates to use {{name}} instead of {{recipient.name}}
+        if (recipient != null) {
+            for (Map.Entry<String, Object> entry : recipient.entrySet()) {
+                String placeholder = "{{" + entry.getKey() + "}}";
+                // Only replace if not already replaced (check if placeholder still exists)
+                if (result.contains(placeholder)) {
+                    String value = entry.getValue() != null ? entry.getValue().toString() : "";
+                    result = result.replace(placeholder, value);
+                }
+            }
+        }
+
+        if (metadata != null) {
+            for (Map.Entry<String, Object> entry : metadata.entrySet()) {
+                String placeholder = "{{" + entry.getKey() + "}}";
+                // Only replace if not already replaced (check if placeholder still exists)
+                if (result.contains(placeholder)) {
+                    String value = entry.getValue() != null ? entry.getValue().toString() : "";
+                    result = result.replace(placeholder, value);
+                }
             }
         }
 
