@@ -430,7 +430,16 @@ public class CertificateController {
                 metadata = Map.of();
             }
         }
-        
+
+        String issuedByName = null;
+        if (certificate.getIssuedByUser() != null) {
+            var firstName = certificate.getIssuedByUser().getFirstName() != null ?
+                certificate.getIssuedByUser().getFirstName() : "";
+            var lastName = certificate.getIssuedByUser().getLastName() != null ?
+                certificate.getIssuedByUser().getLastName() : "";
+            issuedByName = (firstName + " " + lastName).trim();
+        }
+
         var response = CertificateResponse.builder()
                 .id(certificate.getId())
                 .customerId(certificate.getCustomerId())
@@ -444,6 +453,7 @@ public class CertificateController {
                 .issuedAt(certificate.getIssuedAt())
                 .expiresAt(certificate.getExpiresAt())
                 .issuedBy(certificate.getIssuedBy())
+                .issuedByName(issuedByName)
                 .createdAt(certificate.getCreatedAt())
                 .updatedAt(certificate.getUpdatedAt())
                 .build();

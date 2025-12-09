@@ -13,6 +13,7 @@ import tech.seccertificate.certmgmt.entity.Certificate;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
 import tech.seccertificate.certmgmt.exception.PdfGenerationException;
 import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
+import tech.seccertificate.certmgmt.service.StorageService;
 
 import jakarta.annotation.PostConstruct;
 
@@ -49,6 +50,7 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
     private final CertificateTemplateResolver certificateTemplateResolver;
     private final QrCodeService qrCodeService;
     private final CertificateHashRepository certificateHashRepository;
+    private final StorageService storageService;
 
     @PostConstruct
     public void configureTemplateEngine() {
@@ -63,7 +65,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
 
     @Override
     public ByteArrayOutputStream generatePdf(TemplateVersion templateVersion, Certificate certificate) {
-        log.info("Generating PDF for certificate ID: {}", certificate.getId());
+        log.info("Generating PDF for certificate ID: {}, Template Version ID: {}",
+                certificate.getId(), templateVersion.getId());
 
         try {
             var htmlContent = renderHtml(templateVersion, certificate);
@@ -73,6 +76,10 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
             var builder = new PdfRendererBuilder();
             builder.withHtmlContent(htmlContent, null);
             builder.toStream(pdfOutputStream);
+
+            // Apply template version settings to PDF builder
+            applyPdfSettings(builder, templateVersion);
+
             builder.useFastMode();
             builder.run();
 
@@ -83,7 +90,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         } catch (PdfGenerationException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Failed to generate PDF for certificate ID: {}", certificate.getId(), e);
+            log.error("Failed to generate PDF for certificate ID: {}, Template Version ID: {}",
+                    certificate.getId(), templateVersion.getId(), e);
             throw new PdfGenerationException(
                     "Failed to generate PDF for certificate: " + certificate.getId(), e);
         }
@@ -106,8 +114,14 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
 
             var renderedHtml = processTemplate(htmlTemplate, context, certificate.getId());
 
+            // Inject CSS styles from template version
             if (templateVersion.getCssStyles() != null && !templateVersion.getCssStyles().trim().isEmpty()) {
                 renderedHtml = injectCssStyles(renderedHtml, templateVersion.getCssStyles());
+            }
+
+            // Inject PDF page settings as CSS @page rules
+            if (templateVersion.getSettings() != null && !templateVersion.getSettings().trim().isEmpty()) {
+                renderedHtml = injectPageSettings(renderedHtml, templateVersion.getSettings());
             }
 
             renderedHtml = appendVerificationFooter(renderedHtml, context, certificate);
@@ -174,6 +188,9 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         // Add certificate hash and QR code for verification (if hash exists)
         addVerificationDataToContext(context, certificate);
 
+        // Add download URL if certificate has storage path
+        addDownloadUrlToContext(context, certificate);
+
         return context;
     }
 
@@ -184,24 +201,24 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
     private void addVerificationDataToContext(Context context, Certificate certificate) {
         try {
             var certificateHashOpt = certificateHashRepository.findByCertificateId(certificate.getId());
-            
+
             if (certificateHashOpt.isPresent()) {
                 var certificateHash = certificateHashOpt.get();
                 var hash = certificateHash.getHashValue();
                 var baseUrl = getBaseUrl();
                 var verificationUrl = baseUrl + "/api/certificates/verify/" + hash;
-                
+
                 // Add hash to context
                 context.setVariable("certificateHash", hash);
                 context.setVariable("verificationUrl", verificationUrl);
-                
+
                 // Generate QR code image as base64 data URI
                 try {
                     var qrCodeDataUri = generateQrCodeDataUri(verificationUrl);
                     context.setVariable("qrCodeImage", qrCodeDataUri);
                     log.debug("Added QR code and hash to template context for certificate {}", certificate.getId());
                 } catch (Exception e) {
-                    log.warn("Failed to generate QR code for certificate {}, continuing without QR code", 
+                    log.warn("Failed to generate QR code for certificate {}, continuing without QR code",
                             certificate.getId(), e);
                     // Continue without QR code - hash will still be available
                 }
@@ -209,7 +226,7 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
                 log.debug("No hash found for certificate {}, verification data not added", certificate.getId());
             }
         } catch (Exception e) {
-            log.warn("Failed to add verification data to context for certificate {}: {}", 
+            log.warn("Failed to add verification data to context for certificate {}: {}",
                     certificate.getId(), e.getMessage());
             // Continue without verification data - certificate will still be generated
         }
@@ -228,6 +245,43 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         } catch (Exception e) {
             log.error("Failed to generate QR code data URI for URL: {}", verificationUrl, e);
             throw new RuntimeException("Failed to generate QR code", e);
+        }
+    }
+
+    /**
+     * Add download URL to template context if certificate has storage path.
+     * The download URL is only available if the certificate PDF has been uploaded to storage.
+     */
+    private void addDownloadUrlToContext(Context context, Certificate certificate) {
+        try {
+            if (certificate.getStoragePath() != null && !certificate.getStoragePath().isEmpty()) {
+                try {
+                    // Generate signed download URL (60 minutes expiration)
+                    String downloadUrl = storageService.generateSignedUrl(
+                            storageService.getDefaultBucketName(),
+                            certificate.getStoragePath(),
+                            60
+                    );
+                    context.setVariable("downloadUrl", downloadUrl);
+                    log.debug("Added download URL to template context for certificate {}", certificate.getId());
+                } catch (Exception e) {
+                    log.warn("Failed to generate download URL for certificate {}, continuing without download URL: {}",
+                            certificate.getId(), e.getMessage());
+                    // Continue without download URL - certificate will still be generated
+                    context.setVariable("downloadUrl", "");
+                }
+            } else {
+                // Certificate doesn't have storage path yet (PDF not uploaded)
+                // Leave download URL empty - it will be available after PDF is uploaded
+                context.setVariable("downloadUrl", "");
+                log.debug("Certificate {} does not have storage path yet, download URL not available",
+                        certificate.getId());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to add download URL to context for certificate {}: {}",
+                    certificate.getId(), e.getMessage());
+            // Continue without download URL - certificate will still be generated
+            context.setVariable("downloadUrl", "");
         }
     }
 
@@ -293,30 +347,48 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
 
     /**
      * Replace simple variables in HTML template (for non-Thymeleaf templates).
-     * Supports {{variableName}} and {{recipient.fieldName}} syntax.
+     * Supports {{variableName}}, {{recipient.fieldName}}, and {{fieldName}} (auto-resolved from recipient) syntax.
      */
     private String replaceSimpleVariables(@NotNull String html, Context context) {
 
         Map<String, Object> variables = new HashMap<>();
-        // for (var varName : context.getVariableNames()) {
-        //     variables.put(varName, context.getVariable(varName));
-        // }
         context.getVariableNames()
                 .forEach(v -> variables.put(v, context.getVariable(v)));
 
         var result = html;
 
+        // First, replace top-level context variables (but skip Map objects like recipient/metadata)
         for (Map.Entry<String, Object> entry : variables.entrySet()) {
             var varName = entry.getKey();
             var value = entry.getValue();
-            var strValue = value != null ? value.toString() : "";
 
+            // Skip Map objects - they'll be handled separately
+            if (value instanceof Map) {
+                continue;
+            }
+
+            var strValue = value != null ? value.toString() : "";
             result = result.replace("{{" + varName + "}}", strValue);
         }
 
+        // Extract recipient and metadata maps for field replacement
+        Map<String, Object> recipient = null;
+        Map<String, Object> metadata = null;
+
         if (variables.containsKey("recipient") && variables.get("recipient") instanceof Map) {
             @SuppressWarnings("unchecked")
-            Map<String, Object> recipient = (Map<String, Object>) variables.get("recipient");
+            Map<String, Object> recipientMap = (Map<String, Object>) variables.get("recipient");
+            recipient = recipientMap;
+        }
+
+        if (variables.containsKey("metadata") && variables.get("metadata") instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> metadataMap = (Map<String, Object>) variables.get("metadata");
+            metadata = metadataMap;
+        }
+
+        // Replace {{recipient.fieldName}} patterns
+        if (recipient != null) {
             for (Map.Entry<String, Object> entry : recipient.entrySet()) {
                 String placeholder = "{{recipient." + entry.getKey() + "}}";
                 String value = entry.getValue() != null ? entry.getValue().toString() : "";
@@ -324,13 +396,36 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
             }
         }
 
-        if (variables.containsKey("metadata") && variables.get("metadata") instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> metadata = (Map<String, Object>) variables.get("metadata");
+        // Replace {{metadata.fieldName}} patterns
+        if (metadata != null) {
             for (Map.Entry<String, Object> entry : metadata.entrySet()) {
                 String placeholder = "{{metadata." + entry.getKey() + "}}";
                 String value = entry.getValue() != null ? entry.getValue().toString() : "";
                 result = result.replace(placeholder, value);
+            }
+        }
+
+        // Finally, replace any remaining {{fieldName}} by auto-resolving from recipient first, then metadata
+        // This allows templates to use {{name}} instead of {{recipient.name}}
+        if (recipient != null) {
+            for (Map.Entry<String, Object> entry : recipient.entrySet()) {
+                String placeholder = "{{" + entry.getKey() + "}}";
+                // Only replace if not already replaced (check if placeholder still exists)
+                if (result.contains(placeholder)) {
+                    String value = entry.getValue() != null ? entry.getValue().toString() : "";
+                    result = result.replace(placeholder, value);
+                }
+            }
+        }
+
+        if (metadata != null) {
+            for (Map.Entry<String, Object> entry : metadata.entrySet()) {
+                String placeholder = "{{" + entry.getKey() + "}}";
+                // Only replace if not already replaced (check if placeholder still exists)
+                if (result.contains(placeholder)) {
+                    String value = entry.getValue() != null ? entry.getValue().toString() : "";
+                    result = result.replace(placeholder, value);
+                }
             }
         }
 
@@ -390,7 +485,7 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
     /**
      * Inject CSS styles into HTML content.
      * Adds a <style> tag in the <head> section, or creates one if it doesn't exist.
-     * Author: aider AI
+     * Ensures proper HTML structure with meta charset tag.
      */
     private String injectCssStyles(@NotNull String html, String cssStyles) {
         if (cssStyles == null || cssStyles.trim().isEmpty()) {
@@ -399,6 +494,138 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
 
         var trimmedCss = cssStyles.trim();
 
+        if (html.contains("<head>") && html.contains("</head>")) {
+            if (html.contains("<style>") && html.contains("</style>")) {
+                return html.replace("</style>", "\n" + trimmedCss + "\n</style>");
+            } else {
+                return html.replace("</head>", "<style>\n" + trimmedCss + "\n</style></head>");
+            }
+        } else if (html.contains("<html>")) {
+            // HTML tag exists but no head, create head with meta charset and style
+            return html.replace("<html>", "<html><head><meta charset=\"UTF-8\" /><style>\n" + trimmedCss + "\n</style></head>");
+        } else {
+            // No HTML structure, wrap with proper HTML structure
+            return "<!DOCTYPE html><html><head><meta charset=\"UTF-8\" /><style>\n" + trimmedCss + "\n</style></head><body>\n" + html + "\n</body></html>";
+        }
+    }
+
+    /**
+     * Inject PDF page settings as CSS @page rules into HTML content.
+     * Converts template version settings (pageSize, orientation, margins) to CSS.
+     *
+     * @param html         The HTML content
+     * @param settingsJson The settings JSON string from template version
+     * @return HTML with @page CSS rules injected
+     */
+    @SuppressWarnings("unchecked")
+    private String injectPageSettings(@NotNull String html, String settingsJson) {
+        if (settingsJson == null || settingsJson.trim().isEmpty()) {
+            return html;
+        }
+
+        try {
+            Map<String, Object> settings = objectMapper.readValue(
+                    settingsJson,
+                    objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class)
+            );
+
+            if (settings == null || settings.isEmpty()) {
+                return html;
+            }
+
+            StringBuilder pageCss = new StringBuilder();
+            pageCss.append("@page {\n");
+
+            // Page size
+            if (settings.containsKey("pageSize")) {
+                String pageSize = getStringValue(settings, "pageSize", "A4");
+                pageCss.append("  size: ").append(pageSize).append(";\n");
+            } else if (settings.containsKey("pageWidth") && settings.containsKey("pageHeight")) {
+                double width = getDoubleValue(settings, "pageWidth", 210.0);
+                double height = getDoubleValue(settings, "pageHeight", 297.0);
+                String unit = getStringValue(settings, "unit", "mm");
+                pageCss.append(String.format("  size: %.2f%s %.2f%s;\n", width, unit, height, unit));
+            }
+
+            // Orientation
+            if (settings.containsKey("orientation")) {
+                String orientation = getStringValue(settings, "orientation", "portrait");
+                if ("landscape".equalsIgnoreCase(orientation)) {
+                    // If size is already set, we need to swap dimensions or use landscape keyword
+                    // For simplicity, we'll add it as a separate property
+                    pageCss.append("  size: landscape;\n");
+                }
+            }
+
+            // Margins
+            if (settings.containsKey("margins")) {
+                Object marginsObj = settings.get("margins");
+                if (marginsObj instanceof Map) {
+                    Map<String, Object> margins = (Map<String, Object>) marginsObj;
+                    String marginCss = buildMarginCss(margins);
+                    if (!marginCss.isEmpty()) {
+                        pageCss.append("  ").append(marginCss).append("\n");
+                    }
+                } else if (marginsObj instanceof String) {
+                    // Single margin value
+                    pageCss.append("  margin: ").append(marginsObj).append(";\n");
+                }
+            }
+
+            pageCss.append("}\n");
+
+            // Inject @page CSS into HTML (similar to injectCssStyles but for @page rules)
+            String pageCssString = pageCss.toString();
+            return injectPageCss(html, pageCssString);
+
+        } catch (Exception e) {
+            log.warn("Failed to inject page settings into HTML: {}", e.getMessage());
+            return html; // Return original HTML if settings parsing fails
+        }
+    }
+
+    /**
+     * Build CSS margin string from margins map.
+     */
+    private String buildMarginCss(Map<String, Object> margins) {
+        StringBuilder marginCss = new StringBuilder();
+
+        if (margins.containsKey("top") || margins.containsKey("right")
+                || margins.containsKey("bottom") || margins.containsKey("left")) {
+            String top = getStringValue(margins, "top", "0");
+            String right = getStringValue(margins, "right", "0");
+            String bottom = getStringValue(margins, "bottom", "0");
+            String left = getStringValue(margins, "left", "0");
+
+            marginCss.append("margin: ").append(top).append(" ")
+                    .append(right).append(" ").append(bottom).append(" ").append(left).append(";");
+        } else if (margins.containsKey("all")) {
+            marginCss.append("margin: ").append(getStringValue(margins, "all", "0")).append(";");
+        }
+
+        return marginCss.toString();
+    }
+
+    /**
+     * Inject @page CSS rules into HTML content.
+     * Adds @page rules to the <style> tag in the <head> section.
+     */
+    private String injectPageCss(@NotNull String html, String pageCss) {
+        if (pageCss == null || pageCss.trim().isEmpty()) {
+            return html;
+        }
+
+        var trimmedCss = pageCss.trim();
+
+        // Check if @page already exists
+        if (html.contains("@page")) {
+            // Append to existing @page or add before closing </style>
+            if (html.contains("</style>")) {
+                return html.replace("</style>", "\n" + trimmedCss + "\n</style>");
+            }
+        }
+
+        // Inject into existing style tag or create new one
         if (html.contains("<head>") && html.contains("</head>")) {
             if (html.contains("<style>") && html.contains("</style>")) {
                 return html.replace("</style>", "\n" + trimmedCss + "\n</style>");
@@ -477,5 +704,184 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
                     </div>
                 </div>
                 """.formatted(qrCodeImage, verificationUrl, verificationUrl);
+    }
+
+    /**
+     * Apply PDF settings from template version to PDF builder.
+     * Supports common PDF settings like pageSize, orientation, margins, etc.
+     *
+     * @param builder The PDF renderer builder
+     * @param templateVersion The template version containing settings
+     */
+    @SuppressWarnings("unchecked")
+    private void applyPdfSettings(PdfRendererBuilder builder, TemplateVersion templateVersion) {
+        if (templateVersion.getSettings() == null || templateVersion.getSettings().trim().isEmpty()) {
+            log.debug("No settings found in template version, using defaults");
+            return;
+        }
+
+        try {
+            Map<String, Object> settings = objectMapper.readValue(
+                    templateVersion.getSettings(),
+                    objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class)
+            );
+
+            if (settings == null || settings.isEmpty()) {
+                return;
+            }
+
+            // Apply page size (A4, Letter, Legal, etc.)
+            if (settings.containsKey("pageSize")) {
+                String pageSize = getStringValue(settings, "pageSize", "A4");
+                applyPageSize(builder, pageSize);
+                log.debug("Applied page size: {}", pageSize);
+            }
+
+            // Apply orientation (portrait, landscape)
+            if (settings.containsKey("orientation")) {
+                String orientation = getStringValue(settings, "orientation", "portrait");
+                applyOrientation(builder, orientation);
+                log.debug("Applied orientation: {}", orientation);
+            }
+
+            // Apply margins (top, bottom, left, right in mm or pixels)
+            if (settings.containsKey("margins")) {
+                Object marginsObj = settings.get("margins");
+                if (marginsObj instanceof Map) {
+                    Map<String, Object> margins = (Map<String, Object>) marginsObj;
+                    applyMargins(builder, margins);
+                    log.debug("Applied margins: {}", margins);
+                }
+            }
+
+            // Apply DPI (dots per inch)
+            // Note: DPI is typically handled via CSS and OpenHTMLtoPDF defaults
+            // Custom DPI settings can be applied via CSS @page rules if needed
+            if (settings.containsKey("dpi")) {
+                int dpi = getIntValue(settings, "dpi", 96);
+                log.debug("DPI setting: {} (applied via CSS)", dpi);
+                // DPI is handled by the PDF renderer automatically
+            }
+
+            // Apply page width and height (in mm or pixels)
+            if (settings.containsKey("pageWidth") && settings.containsKey("pageHeight")) {
+                double width = getDoubleValue(settings, "pageWidth", 210.0); // A4 width in mm
+                double height = getDoubleValue(settings, "pageHeight", 297.0); // A4 height in mm
+                String unit = getStringValue(settings, "unit", "mm");
+                applyPageDimensions(builder, width, height, unit);
+                log.debug("Applied page dimensions: {}x{} {}", width, height, unit);
+            }
+
+        } catch (Exception e) {
+            log.warn("Failed to parse or apply PDF settings from template version: {}", e.getMessage());
+            // Continue with default settings - don't fail PDF generation
+        }
+    }
+
+    /**
+     * Apply page size to PDF builder.
+     */
+    private void applyPageSize(PdfRendererBuilder builder, String pageSize) {
+        // OpenHTMLtoPDF uses CSS @page rules, but we can also set it via builder
+        // For now, we'll inject it into the HTML via CSS
+        // The actual page size will be handled by CSS @page rules in the HTML
+        log.debug("Page size setting: {} (applied via CSS)", pageSize);
+    }
+
+    /**
+     * Apply orientation to PDF builder.
+     */
+    private void applyOrientation(PdfRendererBuilder builder, String orientation) {
+        // Orientation is typically handled via CSS @page rules
+        // OpenHTMLtoPDF respects CSS @page { size: landscape; } or { size: portrait; }
+        log.debug("Orientation setting: {} (applied via CSS)", orientation);
+    }
+
+    /**
+     * Apply margins to PDF builder.
+     */
+    private void applyMargins(PdfRendererBuilder builder, Map<String, Object> margins) {
+        // Margins are typically handled via CSS @page rules
+        // OpenHTMLtoPDF respects CSS @page { margin: ...; }
+        log.debug("Margins setting applied via CSS");
+    }
+
+    /**
+     * Apply custom page dimensions to PDF builder.
+     */
+    private void applyPageDimensions(PdfRendererBuilder builder, double width, double height, String unit) {
+        // Convert to points (OpenHTMLtoPDF uses points)
+        double widthPoints = convertToPoints(width, unit);
+        double heightPoints = convertToPoints(height, unit);
+
+        // OpenHTMLtoPDF doesn't directly support custom page sizes via builder API
+        // This would need to be handled via CSS @page rules in the HTML
+        log.debug("Page dimensions: {}x{} points (applied via CSS)", widthPoints, heightPoints);
+    }
+
+    /**
+     * Convert a measurement to points (1 inch = 72 points).
+     */
+    private double convertToPoints(double value, String unit) {
+        return switch (unit.toLowerCase()) {
+            case "mm" -> value * 72.0 / 25.4; // mm to points
+            case "cm" -> value * 72.0 / 2.54; // cm to points
+            case "in", "inch" -> value * 72.0; // inches to points
+            case "px", "pixel" -> value * 72.0 / 96.0; // pixels to points (assuming 96 DPI)
+            default -> value; // Assume already in points
+        };
+    }
+
+    /**
+     * Helper method to get string value from map with default.
+     */
+    private String getStringValue(Map<String, Object> map, String key, String defaultValue) {
+        Object value = map.get(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        return value.toString();
+    }
+
+    /**
+     * Helper method to get int value from map with default.
+     */
+    private int getIntValue(Map<String, Object> map, String key, int defaultValue) {
+        Object value = map.get(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        if (value instanceof String) {
+            try {
+                return Integer.parseInt((String) value);
+            } catch (NumberFormatException e) {
+                return defaultValue;
+            }
+        }
+        return defaultValue;
+    }
+
+    /**
+     * Helper method to get double value from map with default.
+     */
+    private double getDoubleValue(Map<String, Object> map, String key, double defaultValue) {
+        Object value = map.get(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        if (value instanceof String) {
+            try {
+                return Double.parseDouble((String) value);
+            } catch (NumberFormatException e) {
+                return defaultValue;
+            }
+        }
+        return defaultValue;
     }
 }

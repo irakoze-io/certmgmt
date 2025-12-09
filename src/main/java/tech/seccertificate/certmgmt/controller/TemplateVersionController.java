@@ -345,7 +345,7 @@ public class TemplateVersionController {
                 fieldSchema = Map.of();
             }
         }
-        
+
         Map<String, Object> settings = null;
         if (version.getSettings() != null && !version.getSettings().isEmpty()) {
             try {
@@ -356,7 +356,17 @@ public class TemplateVersionController {
                 settings = Map.of();
             }
         }
-        
+
+        // Get user full name from eagerly fetched relationship (no extra query!)
+        String createdByName = null;
+        if (version.getCreatedByUser() != null) {
+            var firstName = version.getCreatedByUser().getFirstName() != null ?
+                version.getCreatedByUser().getFirstName() : "";
+            var lastName = version.getCreatedByUser().getLastName() != null ?
+                version.getCreatedByUser().getLastName() : "";
+            createdByName = (firstName + " " + lastName).trim();
+        }
+
         return TemplateVersionResponse.builder()
                 .id(version.getId())
                 .templateId(version.getTemplate().getId())
@@ -367,6 +377,7 @@ public class TemplateVersionController {
                 .settings(settings)
                 .status(version.getStatus())
                 .createdBy(version.getCreatedBy())
+                .createdByName(createdByName)
                 .createdAt(version.getCreatedAt())
                 .build();
     }
