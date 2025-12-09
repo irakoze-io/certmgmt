@@ -63,6 +63,9 @@ public class CertificateResponse {
     @Schema(description = "User ID who issued this certificate", example = "770e8400-e29b-41d4-a716-446655440000")
     private UUID issuedBy;
 
+    @Schema(description = "Full name of user who issued this certificate", example = "John Doe")
+    private String issuedByName;
+
     @Schema(description = "Date when certificate was created", example = "2024-01-15T10:30:00")
     private LocalDateTime createdAt;
 

@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tech.seccertificate.certmgmt.config.TenantContext;
@@ -89,6 +92,14 @@ public class CertificateServiceImpl implements CertificateService {
             throw new IllegalArgumentException("Recipient data is required");
         }
 
+        // Set issuedBy from current authenticated user if not provided
+        if (certificate.getIssuedBy() == null) {
+            UUID currentUserId = getCurrentUserId();
+            if (currentUserId != null) {
+                certificate.setIssuedBy(currentUserId);
+            }
+        }
+
         // Validate customer limits
         validateCustomerLimits(certificate.getCustomerId());
 
@@ -153,6 +164,14 @@ public class CertificateServiceImpl implements CertificateService {
         }
         if (certificate.getRecipientData() == null || certificate.getRecipientData().isEmpty()) {
             throw new IllegalArgumentException("Recipient data is required");
+        }
+
+        // Set issuedBy from current authenticated user if not provided
+        if (certificate.getIssuedBy() == null) {
+            UUID currentUserId = getCurrentUserId();
+            if (currentUserId != null) {
+                certificate.setIssuedBy(currentUserId);
+            }
         }
 
         validateCustomerLimits(certificate.getCustomerId());
@@ -830,8 +849,15 @@ public class CertificateServiceImpl implements CertificateService {
                     PDF_CONTENT_TYPE
             );
 
-            // 8. Mark as issued
+            // 8. Mark as issued - ensure issuedBy is set
             certificate.setStatus(Certificate.CertificateStatus.ISSUED);
+            if (certificate.getIssuedBy() == null) {
+                // Set issuedBy from current authenticated user if not already set
+                UUID currentUserId = getCurrentUserId();
+                if (currentUserId != null) {
+                    certificate.setIssuedBy(currentUserId);
+                }
+            }
             certificateRepository.save(certificate);
 
             log.info("Certificate generation completed for ID: {}, storage path: {}",
@@ -893,5 +919,46 @@ public class CertificateServiceImpl implements CertificateService {
             result |= a.charAt(i) ^ b.charAt(i);
         }
         return result == 0;
+    }
+
+    /**
+     * Get the current authenticated user's ID from the security context.
+     *
+     * @return UUID of the current user, or null if not authenticated
+     */
+    private UUID getCurrentUserId() {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated()) {
+                log.warn("No authenticated user found in security context");
+                return null;
+            }
+
+            // Extract user ID from JWT token
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof Jwt jwt) {
+                // Try to get user ID from different claim names
+                String userIdStr = jwt.getClaimAsString("user_id");
+                if (userIdStr == null || userIdStr.isEmpty()) {
+                    userIdStr = jwt.getClaimAsString("userId");
+                }
+                if (userIdStr == null || userIdStr.isEmpty()) {
+                    userIdStr = jwt.getClaimAsString("sub");
+                }
+
+                if (userIdStr != null && !userIdStr.isEmpty()) {
+                    return UUID.fromString(userIdStr);
+                } else {
+                    log.warn("User ID claim not found in JWT token");
+                    return null;
+                }
+            } else {
+                log.warn("Principal is not a JWT token: {}", principal.getClass().getName());
+                return null;
+            }
+        } catch (Exception e) {
+            log.error("Failed to extract user ID from security context", e);
+            return null;
+        }
     }
 }

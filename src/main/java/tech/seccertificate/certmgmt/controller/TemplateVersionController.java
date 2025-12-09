@@ -47,6 +47,7 @@ public class TemplateVersionController {
 
     private final TemplateService templateService;
     private final ObjectMapper objectMapper;
+    private final tech.seccertificate.certmgmt.repository.UserRepository userRepository;
 
     /**
      * Create a new template version.
@@ -345,7 +346,7 @@ public class TemplateVersionController {
                 fieldSchema = Map.of();
             }
         }
-        
+
         Map<String, Object> settings = null;
         if (version.getSettings() != null && !version.getSettings().isEmpty()) {
             try {
@@ -356,7 +357,19 @@ public class TemplateVersionController {
                 settings = Map.of();
             }
         }
-        
+
+        // Fetch user to get full name
+        String createdByName = null;
+        if (version.getCreatedBy() != null) {
+            createdByName = userRepository.findById(version.getCreatedBy())
+                    .map(user -> {
+                        String firstName = user.getFirstName() != null ? user.getFirstName() : "";
+                        String lastName = user.getLastName() != null ? user.getLastName() : "";
+                        return (firstName + " " + lastName).trim();
+                    })
+                    .orElse(null);
+        }
+
         return TemplateVersionResponse.builder()
                 .id(version.getId())
                 .templateId(version.getTemplate().getId())
@@ -367,6 +380,7 @@ public class TemplateVersionController {
                 .settings(settings)
                 .status(version.getStatus())
                 .createdBy(version.getCreatedBy())
+                .createdByName(createdByName)
                 .createdAt(version.getCreatedAt())
                 .build();
     }
