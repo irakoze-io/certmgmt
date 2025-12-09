@@ -373,7 +373,10 @@ public class CertificateServiceImpl implements CertificateService {
                 ));
 
         certificate.setStatus(Certificate.CertificateStatus.ISSUED);
-        certificate.setIssuedBy(issuedBy);
+        // Only update issuedBy if a non-null value is provided (preserve existing value otherwise)
+        if (issuedBy != null) {
+            certificate.setIssuedBy(issuedBy);
+        }
         if (certificate.getIssuedAt() == null) {
             certificate.setIssuedAt(LocalDateTime.now());
         }
@@ -936,20 +939,30 @@ public class CertificateServiceImpl implements CertificateService {
 
             // Extract user ID from JWT token
             Object principal = authentication.getPrincipal();
+            log.debug("Principal type: {}", principal != null ? principal.getClass().getName() : "null");
+
             if (principal instanceof Jwt jwt) {
+                // Log all claims for debugging
+                log.debug("JWT claims: {}", jwt.getClaims());
+
                 // Try to get user ID from different claim names
                 String userIdStr = jwt.getClaimAsString("user_id");
+                log.debug("Claim 'user_id': {}", userIdStr);
+
                 if (userIdStr == null || userIdStr.isEmpty()) {
                     userIdStr = jwt.getClaimAsString("userId");
+                    log.debug("Claim 'userId': {}", userIdStr);
                 }
                 if (userIdStr == null || userIdStr.isEmpty()) {
                     userIdStr = jwt.getClaimAsString("sub");
+                    log.debug("Claim 'sub': {}", userIdStr);
                 }
 
                 if (userIdStr != null && !userIdStr.isEmpty()) {
+                    log.debug("Successfully extracted user ID: {}", userIdStr);
                     return UUID.fromString(userIdStr);
                 } else {
-                    log.warn("User ID claim not found in JWT token");
+                    log.warn("User ID claim not found in JWT token. Available claims: {}", jwt.getClaims().keySet());
                     return null;
                 }
             } else {
