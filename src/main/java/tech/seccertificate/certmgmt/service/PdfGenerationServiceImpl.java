@@ -13,6 +13,7 @@ import tech.seccertificate.certmgmt.entity.Certificate;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
 import tech.seccertificate.certmgmt.exception.PdfGenerationException;
 import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
+import tech.seccertificate.certmgmt.service.StorageService;
 
 import jakarta.annotation.PostConstruct;
 
@@ -49,6 +50,7 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
     private final CertificateTemplateResolver certificateTemplateResolver;
     private final QrCodeService qrCodeService;
     private final CertificateHashRepository certificateHashRepository;
+    private final StorageService storageService;
 
     @PostConstruct
     public void configureTemplateEngine() {
@@ -186,6 +188,9 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         // Add certificate hash and QR code for verification (if hash exists)
         addVerificationDataToContext(context, certificate);
 
+        // Add download URL if certificate has storage path
+        addDownloadUrlToContext(context, certificate);
+
         return context;
     }
 
@@ -240,6 +245,43 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         } catch (Exception e) {
             log.error("Failed to generate QR code data URI for URL: {}", verificationUrl, e);
             throw new RuntimeException("Failed to generate QR code", e);
+        }
+    }
+
+    /**
+     * Add download URL to template context if certificate has storage path.
+     * The download URL is only available if the certificate PDF has been uploaded to storage.
+     */
+    private void addDownloadUrlToContext(Context context, Certificate certificate) {
+        try {
+            if (certificate.getStoragePath() != null && !certificate.getStoragePath().isEmpty()) {
+                try {
+                    // Generate signed download URL (60 minutes expiration)
+                    String downloadUrl = storageService.generateSignedUrl(
+                            storageService.getDefaultBucketName(),
+                            certificate.getStoragePath(),
+                            60
+                    );
+                    context.setVariable("downloadUrl", downloadUrl);
+                    log.debug("Added download URL to template context for certificate {}", certificate.getId());
+                } catch (Exception e) {
+                    log.warn("Failed to generate download URL for certificate {}, continuing without download URL: {}",
+                            certificate.getId(), e.getMessage());
+                    // Continue without download URL - certificate will still be generated
+                    context.setVariable("downloadUrl", "");
+                }
+            } else {
+                // Certificate doesn't have storage path yet (PDF not uploaded)
+                // Leave download URL empty - it will be available after PDF is uploaded
+                context.setVariable("downloadUrl", "");
+                log.debug("Certificate {} does not have storage path yet, download URL not available",
+                        certificate.getId());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to add download URL to context for certificate {}: {}",
+                    certificate.getId(), e.getMessage());
+            // Continue without download URL - certificate will still be generated
+            context.setVariable("downloadUrl", "");
         }
     }
 

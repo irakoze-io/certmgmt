@@ -1,0 +1,284 @@
+/* Certificate Template Styles - Portrait and Landscape Support */
+
+/* Base Styles */
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background: white;
+}
+
+/* Outer container with green border */
+.certificate-outer {
+  border: 3px solid #4CAF50; /* Light green */
+  border-radius: 8px;
+  padding: 15px;
+  margin: 20px;
+  background: white;
+}
+
+/* Inner container with blue border */
+.certificate-inner {
+  border: 2px solid #2196F3; /* Medium blue */
+  border-radius: 6px;
+  padding: 40px;
+  background: white;
+  min-height: 600px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Main Title */
+.certificate-title {
+  color: #4CAF50; /* Bright green */
+  font-size: 32px;
+  font-weight: bold;
+  text-align: center;
+  text-transform: uppercase;
+  margin: 20px 0 30px 0;
+  letter-spacing: 2px;
+}
+
+/* Main Body Content */
+.certificate-body {
+  text-align: center;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 20px 0;
+}
+
+.intro-text {
+  font-size: 18px;
+  color: #555;
+  margin: 10px 0;
+}
+
+.student-name {
+  font-size: 36px;
+  font-weight: bold;
+  color: #333;
+  margin: 30px 0;
+  text-align: center;
+}
+
+.completion-text {
+  font-size: 16px;
+  color: #555;
+  margin: 20px 0;
+}
+
+.course-title {
+  font-size: 24px;
+  font-weight: bold;
+  color: #4CAF50; /* Bright green */
+  margin: 25px 0;
+  text-align: center;
+}
+
+.info-url {
+  font-size: 12px;
+  color: #555;
+  margin: 15px 0;
+  word-break: break-all;
+}
+
+/* Additional Fields - Centered, field value space field name format */
+.additional-fields {
+  margin: 20px 0;
+  text-align: center;
+}
+
+.additional-fields p,
+.additional-fields div {
+  font-size: 16px;
+  color: #333;
+  margin: 10px 0;
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* Style for field value and name pairs */
+.additional-fields .field-item {
+  display: block;
+  margin: 8px 0;
+}
+
+/* Brand/Logo Section */
+.brand-section {
+  text-align: center;
+  margin: 40px 0 20px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.brand-logo {
+  font-size: 24px;
+  font-weight: bold;
+  color: #4CAF50; /* Green */
+  transform: rotate(180deg);
+  display: inline-block;
+}
+
+.brand-name {
+  font-size: 16px;
+  color: #555;
+}
+
+/* Bottom Footer Section */
+.certificate-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: 30px;
+  padding-top: 20px;
+}
+
+.footer-left {
+  text-align: left;
+  font-size: 12px;
+  color: #555;
+}
+
+.issued-date {
+  margin-bottom: 5px;
+}
+
+.download-url {
+  word-break: break-all;
+  font-size: 11px;
+  color: #666;
+}
+
+.footer-right {
+  text-align: right;
+  font-size: 12px;
+  color: #555;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.achievement-emblem {
+  border: 1px solid #ccc;
+  border-radius: 50%;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 15px;
+  background: white;
+}
+
+.emblem-text {
+  font-size: 10px;
+  color: #999;
+  text-transform: uppercase;
+  margin: 2px 0;
+}
+
+.emblem-stars {
+  font-size: 12px;
+  color: #ccc;
+  margin-top: 5px;
+  letter-spacing: 5px;
+}
+
+.certificate-id {
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: #555;
+}
+
+.qr-code-container {
+  margin-top: 10px;
+}
+
+.qr-code-image {
+  width: 100px;
+  height: 100px;
+  display: block;
+}
+
+/* Landscape Orientation Support */
+@media print {
+  @page {
+    size: A4 landscape;
+  }
+  
+  .certificate-inner {
+    min-height: 400px;
+  }
+  
+  .certificate-title {
+    font-size: 28px;
+  }
+  
+  .student-name {
+    font-size: 32px;
+  }
+  
+  .course-title {
+    font-size: 22px;
+  }
+}
+
+/* Portrait Orientation (Default) */
+@page {
+  size: A4 portrait;
+}
+
+/* Landscape Orientation Class - Can be applied via settings */
+.landscape .certificate-inner {
+  min-height: 400px;
+}
+
+.landscape .certificate-title {
+  font-size: 28px;
+}
+
+.landscape .student-name {
+  font-size: 32px;
+}
+
+.landscape .course-title {
+  font-size: 22px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 800px) {
+  .certificate-outer {
+    margin: 10px;
+    padding: 10px;
+  }
+  
+  .certificate-inner {
+    padding: 20px;
+  }
+  
+  .certificate-title {
+    font-size: 24px;
+  }
+  
+  .student-name {
+    font-size: 28px;
+  }
+  
+  .certificate-footer {
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+  
+  .footer-left,
+  .footer-right {
+    text-align: center;
+    width: 100%;
+  }
+}
