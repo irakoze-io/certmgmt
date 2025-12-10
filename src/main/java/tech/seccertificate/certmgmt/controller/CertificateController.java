@@ -2,11 +2,19 @@ package tech.seccertificate.certmgmt.controller;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import tech.seccertificate.certmgmt.dto.Response;
@@ -46,6 +54,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/certificates")
 @RequiredArgsConstructor
+@Tag(name = "Certificates", description = "Certificate generation, management, and verification operations")
 public class CertificateController {
 
     private final CertificateService certificateService;
@@ -107,7 +116,7 @@ public class CertificateController {
                 "Certificate retrieved successfully",
                 response
         );
-        
+
         return ResponseEntity.ok(unifiedResponse);
     }
 
@@ -297,10 +306,34 @@ public class CertificateController {
     /**
      * Public verification endpoint for certificate hash.
      * This endpoint doesn't require authentication and can be used for public verification.
-     * 
+     *
      * @param hash The certificate hash to verify
      * @return Certificate response with 200 status if valid, or 404 if not found/invalid
      */
+    @Operation(
+            summary = "Verify certificate by hash",
+            description = "Public endpoint for verifying certificate authenticity using the certificate hash. " +
+                    "No authentication required.",
+            security = @SecurityRequirement(name = "")
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Certificate verified successfully",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = Response.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Certificate not found or invalid hash",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = Response.class)
+                    )
+            )
+    })
     @GetMapping("/verify/{hash}")
     public ResponseEntity<Response<CertificateResponse>> verifyCertificate(@PathVariable @NotNull String hash) {
         log.debug("Verifying certificate with hash: {}", hash);

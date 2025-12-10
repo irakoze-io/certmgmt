@@ -101,11 +101,21 @@ public class CertificateGenerationWorker {
                     .orElseThrow(() -> new IllegalArgumentException(
                             "Template version not found: " + certificate.getTemplateVersionId()));
 
-            // Step 1: Generate initial PDF to calculate hash
-            var initialPdfBytes = pdfGenerationService.generatePdf(templateVersion, certificate);
-            var hashValue = generateHashForPdf(initialPdfBytes);
+            // Optimized two-pass generation:
+            // Pass 1: Render HTML once, generate PDF WITHOUT footer → calculate hash → save to DB
+            // Pass 2: Append footer to cached HTML, generate final PDF → store this PDF
+            // Optimization: Reuse HTML rendering to avoid expensive template processing twice
 
-            // Step 2: Save hash to database (needed for PDF regeneration with hash embedded)
+            // Step 1: Render HTML without footer (this is the expensive part - do it once)
+            log.debug("Rendering HTML template for certificate: {}", certificateId);
+            var htmlWithoutFooter = pdfGenerationService.renderHtml(templateVersion, certificate, false);
+
+            // Step 2: Generate PDF from rendered HTML (for hash calculation)
+            log.debug("Generating PDF without footer for hash calculation: {}", certificateId);
+            var pdfWithoutFooter = pdfGenerationService.convertHtmlToPdf(htmlWithoutFooter, templateVersion);
+            var hashValue = generateHashForPdf(pdfWithoutFooter);
+
+            // Step 3: Save hash to database (first DB write)
             certificate.setSignedHash(hashValue);
             var updatedCertificate = certificateService.updateCertificate(certificate);
             var certificateHash = CertificateHash.builder()
@@ -115,11 +125,16 @@ public class CertificateGenerationWorker {
                     .build();
             certificateHashRepository.save(certificateHash);
 
-            // Step 3: Regenerate PDF with hash and QR code embedded
-            // Now that hash is saved, it will be available in template context
-            var finalPdfBytes = pdfGenerationService.generatePdf(templateVersion, updatedCertificate);
+            // Step 4: Append verification footer to cached HTML (fast string operation)
+            log.debug("Appending verification footer to rendered HTML: {}", certificateId);
+            var htmlWithFooter = pdfGenerationService.appendVerificationFooterToHtml(
+                    htmlWithoutFooter, updatedCertificate);
 
-            // Step 4: Upload final PDF with hash embedded
+            // Step 5: Generate final PDF from HTML with footer (reusing rendered content)
+            log.debug("Generating final PDF with verification footer: {}", certificateId);
+            var finalPdf = pdfGenerationService.convertHtmlToPdf(htmlWithFooter, templateVersion);
+
+            // Step 6: Upload final PDF to storage
             var storagePath = buildStoragePath(tenantSchema, certificateId);
             var bucketName = storageService.getDefaultBucketName();
 
@@ -127,23 +142,28 @@ public class CertificateGenerationWorker {
             storageService.uploadFile(
                     bucketName,
                     storagePath,
-                    finalPdfBytes.toByteArray(),
+                    finalPdf.toByteArray(),
                     "application/pdf"
             );
 
+            // Step 7: Update certificate with all final state (single DB write)
             certificate.setStoragePath(storagePath);
-            certificateService.updateCertificate(certificate);
-
-            // Mark as issued or pending (preview)
             if (isPreview) {
                 certificate.setStatus(Certificate.CertificateStatus.PENDING);
                 certificate.setPreviewGeneratedAt(LocalDateTime.now());
-                certificateService.updateCertificate(certificate);
-                log.info("Certificate preview generated successfully: certificateId={}", certificateId);
             } else {
-                certificateService.markAsIssued(certificateId, null);
-                log.info("Certificate generation completed successfully: certificateId={}", certificateId);
+                certificate.setStatus(Certificate.CertificateStatus.ISSUED);
+                if (certificate.getIssuedBy() == null) {
+                    certificate.setIssuedBy(null); // Will be set by service if needed
+                }
+                if (certificate.getIssuedAt() == null) {
+                    certificate.setIssuedAt(LocalDateTime.now());
+                }
             }
+            certificateService.updateCertificate(certificate);
+
+            log.info("Certificate {} generated successfully: certificateId={}",
+                    isPreview ? "preview" : "", certificateId);
 
             channel.basicAck(deliveryTag, false);
 

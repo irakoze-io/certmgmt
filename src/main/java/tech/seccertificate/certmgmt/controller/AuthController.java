@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -47,7 +48,8 @@ public class AuthController {
 
     @Operation(
             summary = "Login",
-            description = "Authenticates a user and returns a JWT token along with user details. Requires X-Tenant-Id header to identify the tenant."
+            description = "Authenticates a user and returns a JWT token along with user details. Requires X-Tenant-Id header to identify the tenant.",
+            security = @SecurityRequirement(name = "")
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -122,6 +124,24 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+    @Operation(
+            summary = "Get current user information",
+            description = "Returns information about the currently authenticated user based on the JWT token."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "User information retrieved successfully",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = Map.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Unauthorized - Invalid or missing JWT token"
+            )
+    })
     @GetMapping("/me")
     public ResponseEntity<Map<String, Object>> me(Principal principal) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -151,7 +171,8 @@ public class AuthController {
     @Operation(
             summary = "Create a new user",
             description = "Creates a new user in the tenant specified by X-Tenant-Id header. " +
-                    "The user will be created in the tenant's schema. Email must be unique within the tenant."
+                    "The user will be created in the tenant's schema. Email must be unique within the tenant.",
+            security = @SecurityRequirement(name = "")
     )
     @ApiResponses(value = {
             @ApiResponse(

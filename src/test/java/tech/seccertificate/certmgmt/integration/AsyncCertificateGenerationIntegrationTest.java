@@ -175,7 +175,7 @@ class AsyncCertificateGenerationIntegrationTest {
                 .build();
 
         // When: Generate certificate asynchronously
-        var savedCertificate = certificateService.generateCertificateAsync(certificate);
+        var savedCertificate = certificateService.generateCertificateAsync(certificate, false);
         log.info("Certificate queued for async generation: {}", savedCertificate.getId());
 
         // Then: Certificate should be saved with PENDING status
@@ -228,7 +228,7 @@ class AsyncCertificateGenerationIntegrationTest {
                 .build();
 
         // When: Generate certificate asynchronously
-        var savedCertificate = certificateService.generateCertificateAsync(certificate);
+        var savedCertificate = certificateService.generateCertificateAsync(certificate, false);
 
         // Then: Should transition from PENDING → PROCESSING → ISSUED
         var certificateId = savedCertificate.getId();
@@ -334,7 +334,7 @@ class AsyncCertificateGenerationIntegrationTest {
         // When: Queue the failed certificate for retry via message queue
         var certificateId = savedCertificate.getId();
         certificateService.generateCertificateAsync(
-                certificateRepository.findById(certificateId).orElseThrow()
+                certificateRepository.findById(certificateId).orElseThrow(), false
         );
 
         // Then: Worker should retry and mark as ISSUED
@@ -374,7 +374,7 @@ class AsyncCertificateGenerationIntegrationTest {
         // So we'll manually queue a message instead
         var msg = new tech.seccertificate.certmgmt.dto.message.CertificateGenerationMessage(
                 savedCertificate.getId(),
-                testCustomer.getTenantSchema()
+                testCustomer.getTenantSchema(), false
         );
 
         rabbitTemplate.convertAndSend(
@@ -408,7 +408,7 @@ class AsyncCertificateGenerationIntegrationTest {
                 .build();
 
         // When: Generate certificate asynchronously
-        var savedCertificate = certificateService.generateCertificateAsync(certificate);
+        var savedCertificate = certificateService.generateCertificateAsync(certificate, false);
 
         // Then: Storage path should follow pattern: {tenant}/certificates/{year}/{month}/{id}.pdf
         await()
@@ -446,7 +446,7 @@ class AsyncCertificateGenerationIntegrationTest {
                 .build();
 
         // When: Generate certificate asynchronously
-        var savedCertificate = certificateService.generateCertificateAsync(certificate);
+        var savedCertificate = certificateService.generateCertificateAsync(certificate, false);
 
         // Then: Hash should be generated and stored
         await()

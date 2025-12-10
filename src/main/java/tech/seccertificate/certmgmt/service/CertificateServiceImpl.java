@@ -817,19 +817,25 @@ public class CertificateServiceImpl implements CertificateService {
         log.info("Processing certificate generation for ID: {} (preview: {})", certificate.getId(), isPreview);
 
         try {
+            // Optimized two-pass generation:
+            // Pass 1: Render HTML once, generate PDF WITHOUT footer → calculate hash → save to DB
+            // Pass 2: Append footer to cached HTML, generate final PDF → store this PDF
+            // Optimization: Reuse HTML rendering to avoid expensive template processing twice
+
             // 1. Load template version
             var templateVersion = getTemplateVersion(certificate.getTemplateVersionId());
 
-            // 2. Generate initial PDF to calculate hash
-            log.debug("Generating initial PDF for certificate: {}", certificate.getId());
-            var initialPdfOutputStream = pdfGenerationService.generatePdf(templateVersion, certificate);
-            var initialPdfBytes = initialPdfOutputStream.toByteArray();
+            // 2. Render HTML without footer (this is the expensive part - do it once)
+            log.debug("Rendering HTML template for certificate: {}", certificate.getId());
+            var htmlWithoutFooter = pdfGenerationService.renderHtml(templateVersion, certificate, false);
 
-            // 3. Generate hash from PDF content
-            var hashValue = generateHashFromPdfContent(initialPdfBytes);
+            // 3. Generate PDF from rendered HTML (for hash calculation)
+            log.debug("Generating PDF without footer for hash calculation: {}", certificate.getId());
+            var pdfWithoutFooter = pdfGenerationService.convertHtmlToPdf(htmlWithoutFooter, templateVersion);
+            var hashValue = generateHashFromPdfContent(pdfWithoutFooter.toByteArray());
+
+            // 4. Save hash to database
             certificate.setSignedHash(hashValue);
-
-            // 4. Create certificate hash record (needed for PDF regeneration with hash embedded)
             var certificateHash = CertificateHash.builder()
                     .certificate(certificate)
                     .hashAlgorithm("SHA-256")
@@ -837,26 +843,29 @@ public class CertificateServiceImpl implements CertificateService {
                     .build();
             certificateHashRepository.save(certificateHash);
 
-            // 5. Regenerate PDF with hash and QR code embedded
-            // Now that hash is saved, it will be available in template context
-            log.debug("Regenerating PDF with hash embedded for certificate: {}", certificate.getId());
-            var finalPdfOutputStream = pdfGenerationService.generatePdf(templateVersion, certificate);
-            var finalPdfBytes = finalPdfOutputStream.toByteArray();
+            // 5. Append verification footer to cached HTML (fast string operation)
+            log.debug("Appending verification footer to rendered HTML: {}", certificate.getId());
+            var htmlWithFooter = pdfGenerationService.appendVerificationFooterToHtml(
+                    htmlWithoutFooter, certificate);
 
-            // 6. Generate storage path
+            // 6. Generate final PDF from HTML with footer (reusing rendered content)
+            log.debug("Generating final PDF with verification footer: {}", certificate.getId());
+            var finalPdf = pdfGenerationService.convertHtmlToPdf(htmlWithFooter, templateVersion);
+
+            // 7. Generate storage path
             var storagePath = generateStoragePath(certificate);
             certificate.setStoragePath(storagePath);
 
-            // 7. Upload final PDF with hash embedded to MinIO/S3
-            log.debug("Uploading PDF with hash embedded to storage: {}", storagePath);
+            // 6. Upload final PDF to storage
+            log.debug("Uploading final PDF to storage: {}", storagePath);
             storageService.uploadFile(
                     storageService.getDefaultBucketName(),
                     storagePath,
-                    finalPdfBytes,
+                    finalPdf.toByteArray(),
                     PDF_CONTENT_TYPE
             );
 
-            // 8. Mark as issued or pending (preview)
+            // 7. Mark as issued or pending (preview)
             if (isPreview) {
                 certificate.setStatus(Certificate.CertificateStatus.PENDING);
                 certificate.setPreviewGeneratedAt(LocalDateTime.now());
@@ -1073,13 +1082,14 @@ public class CertificateServiceImpl implements CertificateService {
                     // Delete PDF from storage
                     storageService.deleteFile(bucketName, certificate.getStoragePath());
 
-                    // Clear storage path and preview timestamp
+                    // Clear storage path and preview timestamp, mark as revoked
                     certificate.setStoragePath(null);
                     certificate.setPreviewGeneratedAt(null);
+                    certificate.setStatus(Certificate.CertificateStatus.REVOKED);
                     certificateRepository.save(certificate);
 
                     cleanedCount++;
-                    log.info("Cleaned up preview PDF for certificate ID: {}", certificate.getId());
+                    log.info("Cleaned up preview PDF and marked as REVOKED for certificate ID: {}", certificate.getId());
                 }
             } catch (Exception e) {
                 log.error("Failed to cleanup preview PDF for certificate ID: {}", certificate.getId(), e);

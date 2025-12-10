@@ -83,3 +83,4 @@ logback-spring.xml
 /FIND_TEMPLATE_IN_DATABASE.md
 /Certificate_Issuance_API_Guide.md
 /src/main/resources/templates/README.md
+/PERFORMANCE_OPTIMIZATION_GUIDE.md

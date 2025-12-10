@@ -6,6 +6,8 @@ import io.swagger.v3.oas.models.examples.Example;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -57,6 +59,13 @@ public class OpenApiConfig {
                                 - Template management
                                 - Customer management
 
+                                ## Authentication
+                                Most endpoints require JWT Bearer authentication. Use the `/auth/login` endpoint
+                                to obtain a JWT token, then include it in the Authorization header:
+                                ```
+                                Authorization: Bearer <your-jwt-token>
+                                ```
+
                                 ## Multi-Tenancy
                                 All endpoints (except public verification) require the `X-Tenant-Id` header
                                 to identify the tenant context.
@@ -105,7 +114,15 @@ public class OpenApiConfig {
                                 .url("<empty>")
                                 .description("Production Server")
                 ))
+                .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
                 .components(new Components()
+                        .addSecuritySchemes("bearerAuth", new SecurityScheme()
+                                .name("bearerAuth")
+                                .type(SecurityScheme.Type.HTTP)
+                                .scheme("bearer")
+                                .bearerFormat("JWT")
+                                .in(SecurityScheme.In.HEADER)
+                                .description("JWT Bearer token authentication. Obtain token via /auth/login endpoint."))
                         .addExamples("successResponse", new Example()
                                 .summary("Success Response Example")
                                 .description("Example of a successful API response")
