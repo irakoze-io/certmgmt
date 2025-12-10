@@ -39,4 +39,10 @@ public interface CertificateRepository extends JpaRepository<Certificate, UUID>,
     long countByStatus(Certificate.CertificateStatus status);
 
     boolean existsByCertificateNumber(String certificateNumber);
+
+    @Query("SELECT c FROM Certificate c LEFT JOIN FETCH c.issuedByUser WHERE c.status = :status AND c.previewGeneratedAt < :cutoffTime")
+    List<Certificate> findByStatusAndPreviewGeneratedAtBefore(
+            @Param("status") Certificate.CertificateStatus status,
+            @Param("cutoffTime") LocalDateTime cutoffTime
+    );
 }

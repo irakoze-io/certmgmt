@@ -25,11 +25,16 @@ public class CertificateGenerationMessage {
     @JsonProperty("tenantSchema")
     String tenantSchema;
 
+    @JsonProperty("isPreview")
+    boolean isPreview;
+
     @JsonCreator
     public CertificateGenerationMessage(
             @JsonProperty("certificateId") UUID certificateId,
-            @JsonProperty("tenantSchema") String tenantSchema) {
+            @JsonProperty("tenantSchema") String tenantSchema,
+            @JsonProperty("isPreview") boolean isPreview) {
         this.certificateId = certificateId;
         this.tenantSchema = tenantSchema;
+        this.isPreview = isPreview;
     }
 }

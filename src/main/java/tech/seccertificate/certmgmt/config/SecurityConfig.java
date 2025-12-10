@@ -106,9 +106,8 @@ public class SecurityConfig {
         // Allow Angular dev server (localhost:5050) and production frontend
         configuration.setAllowedOrigins(Arrays.asList(
                 "http://localhost:5050",
-                "http://localhost:4200",
                 "http://127.0.0.1:5050",
-                "http://127.0.0.1:4200"
+                "https://certmanager-bhbv4n5ck-eracodes-projects.vercel.app"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));

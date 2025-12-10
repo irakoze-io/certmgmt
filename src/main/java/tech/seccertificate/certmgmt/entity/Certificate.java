@@ -60,6 +60,9 @@ public class Certificate {
     @Column(name = "issued_by")
     private UUID issuedBy;
 
+    @Column(name = "preview_generated_at", columnDefinition = "TIMESTAMP WITH TIME ZONE")
+    private LocalDateTime previewGeneratedAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "issued_by", insertable = false, updatable = false)
     private User issuedByUser;

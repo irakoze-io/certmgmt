@@ -60,6 +60,7 @@ logback-spring.xml
 /src/main/java/tech/seccertificate/certmgmt/security/TENANT_IN_JWT_ANALYSIS.md
 /secret.key
 /docs/
+/scripts/
 /logs/
 /qodana.yaml
 /src/main/java/tech/seccertificate/certmgmt/config/README_TENANT_SCHEMA_SWITCHING.md
@@ -80,3 +81,5 @@ logback-spring.xml
 /TEMPLATE_CREATION_CHAINING_GUIDE.md
 /TEMPLATE_VERSION_TO_CERTIFICATE_FLOW.md
 /FIND_TEMPLATE_IN_DATABASE.md
+/Certificate_Issuance_API_Guide.md
+/src/main/resources/templates/README.md

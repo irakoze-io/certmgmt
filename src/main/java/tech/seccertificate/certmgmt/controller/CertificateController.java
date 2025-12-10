@@ -54,33 +54,35 @@ public class CertificateController {
 
     /**
      * Generate a certificate (synchronously or asynchronously).
-     * 
+     *
      * @param request The certificate generation request
      * @return Created certificate response with 201 status
      */
     @PostMapping
     public ResponseEntity<Response<CertificateResponse>> generateCertificate(
             @Valid @RequestBody GenerateCertificateRequest request) {
-        log.info("Generating certificate for template version: {}", request.getTemplateVersionId());
-        
+        boolean isPreview = Boolean.TRUE.equals(request.getPreview());
+        log.info("Generating certificate {} for template version: {}",
+                isPreview ? "preview" : "", request.getTemplateVersionId());
+
         var certificate = mapToEntity(request);
         Certificate createdCertificate;
-        
+
         if (Boolean.TRUE.equals(request.getSynchronous())) {
             log.debug("Generating certificate synchronously");
-            createdCertificate = certificateService.generateCertificate(certificate);
+            createdCertificate = certificateService.generateCertificate(certificate, isPreview);
         } else {
             log.debug("Generating certificate asynchronously");
-            createdCertificate = certificateService.generateCertificateAsync(certificate);
+            createdCertificate = certificateService.generateCertificateAsync(certificate, isPreview);
         }
-        
+
         var response = mapToDTO(createdCertificate);
         var location = URI.create("/api/certificates/" + createdCertificate.getId());
-        var unifiedResponse = Response.success(
-                "Certificate generated successfully",
-                response
-        );
-        
+        var message = isPreview ?
+                "Certificate preview generated successfully" :
+                "Certificate generated successfully";
+        var unifiedResponse = Response.success(message, response);
+
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .location(location)
@@ -226,21 +228,42 @@ public class CertificateController {
     /**
      * Revoke a certificate.
      * Sets status to REVOKED.
-     * 
+     *
      * @param id The certificate ID
      * @return Revoked certificate response with 200 status, or 404 if not found
      */
     @PostMapping("/{id}/revoke")
     public ResponseEntity<Response<CertificateResponse>> revokeCertificate(@PathVariable @NotNull UUID id) {
         log.info("Revoking certificate with ID: {}", id);
-        
+
         var revokedCertificate = certificateService.revokeCertificate(id);
         var response = mapToDTO(revokedCertificate);
         var unifiedResponse = Response.success(
                 "Certificate revoked successfully",
                 response
         );
-        
+
+        return ResponseEntity.ok(unifiedResponse);
+    }
+
+    /**
+     * Issue a preview certificate.
+     * Promotes a PENDING certificate to ISSUED status and reuses the existing preview PDF.
+     *
+     * @param id The certificate ID
+     * @return Issued certificate response with 200 status, or 404 if not found
+     */
+    @PostMapping("/{id}/issue")
+    public ResponseEntity<Response<CertificateResponse>> issueCertificate(@PathVariable @NotNull UUID id) {
+        log.info("Issuing preview certificate with ID: {}", id);
+
+        var issuedCertificate = certificateService.issueCertificate(id);
+        var response = mapToDTO(issuedCertificate);
+        var unifiedResponse = Response.success(
+                "Certificate issued successfully",
+                response
+        );
+
         return ResponseEntity.ok(unifiedResponse);
     }
 

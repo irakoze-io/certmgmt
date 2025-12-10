@@ -41,9 +41,10 @@ public class CertificateGenerationWorker {
 
         var certificateId = message.getCertificateId();
         var tenantSchema = message.getTenantSchema();
+        var isPreview = message.isPreview();
 
-        log.info("Processing certificate generation: certificateId={}, tenantSchema={}",
-                certificateId, tenantSchema);
+        log.info("Processing certificate generation: certificateId={}, tenantSchema={}, isPreview={}",
+                certificateId, tenantSchema, isPreview);
         // Here Debug #11: Setting tenant context for the current thread before the transaction starts
         tenantService.setTenantContext(tenantSchema);
 
@@ -51,7 +52,7 @@ public class CertificateGenerationWorker {
             // Using TransactionTemplate - transaction starts AFTER the setTenantContext call above
             transactionTemplate.executeWithoutResult(_ -> {
                 try {
-                    processCertificate(certificateId, tenantSchema, channel, deliveryTag);
+                    processCertificate(certificateId, tenantSchema, isPreview, channel, deliveryTag);
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -67,6 +68,7 @@ public class CertificateGenerationWorker {
     private void processCertificate(
             java.util.UUID certificateId,
             String tenantSchema,
+            boolean isPreview,
             Channel channel,
             long deliveryTag) throws Exception {
 
@@ -132,9 +134,17 @@ public class CertificateGenerationWorker {
             certificate.setStoragePath(storagePath);
             certificateService.updateCertificate(certificate);
 
-            certificateService.markAsIssued(certificateId, null);
+            // Mark as issued or pending (preview)
+            if (isPreview) {
+                certificate.setStatus(Certificate.CertificateStatus.PENDING);
+                certificate.setPreviewGeneratedAt(LocalDateTime.now());
+                certificateService.updateCertificate(certificate);
+                log.info("Certificate preview generated successfully: certificateId={}", certificateId);
+            } else {
+                certificateService.markAsIssued(certificateId, null);
+                log.info("Certificate generation completed successfully: certificateId={}", certificateId);
+            }
 
-            log.info("Certificate generation completed successfully: certificateId={}", certificateId);
             channel.basicAck(deliveryTag, false);
 
         } catch (Exception e) {
