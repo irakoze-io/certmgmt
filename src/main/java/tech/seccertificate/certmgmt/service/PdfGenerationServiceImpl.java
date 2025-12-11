@@ -356,35 +356,28 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
      */
     private String processTemplate(String htmlTemplate, Context context, UUID certificateId) {
         // Check if template contains Thymeleaf syntax
-        boolean hasThymeleafSyntax = !htmlTemplate.contains("th:")
+        boolean hasThymeleafSyntax = htmlTemplate.contains("th:")
                 || htmlTemplate.contains("#{")
                 || htmlTemplate.contains("*{");
 
         if (hasThymeleafSyntax) {
-            // Use Thymeleaf to process the template
             try {
-                // Use a unique template name
-                String templateName = "certificate-template-" + certificateId;
+                var templateName = "certificate-template-" + certificateId;
 
-                // Register template content with resolver
                 certificateTemplateResolver.registerTemplate(templateName, htmlTemplate);
 
                 try {
-                    // Process the template
-                    StringWriter writer = new StringWriter();
+                    var writer = new StringWriter();
                     templateEngine.process(templateName, context, writer);
                     return writer.toString();
                 } finally {
-                    // Clean up template from cache
                     certificateTemplateResolver.removeTemplate(templateName);
                 }
             } catch (Exception e) {
                 log.warn("Thymeleaf processing failed, falling back to simple replacement: {}", e.getMessage());
-                // Fall back to simple variable replacement
                 return replaceSimpleVariables(htmlTemplate, context);
             }
         } else {
-            // Use simple variable replacement for non-Thymeleaf templates
             return replaceSimpleVariables(htmlTemplate, context);
         }
     }
