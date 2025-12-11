@@ -356,8 +356,7 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
      */
     private String processTemplate(String htmlTemplate, Context context, UUID certificateId) {
         // Check if template contains Thymeleaf syntax
-        boolean hasThymeleafSyntax = htmlTemplate.contains("th:")
-                || htmlTemplate.contains("${")
+        boolean hasThymeleafSyntax = !htmlTemplate.contains("th:")
                 || htmlTemplate.contains("#{")
                 || htmlTemplate.contains("*{");
 
@@ -487,12 +486,15 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         }
 
         try {
-            return objectMapper.readValue(
+            Map<String, Object> parsed = objectMapper.readValue(
                     recipientDataJson,
                     objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class)
             );
+            log.debug("Successfully parsed recipient data: {} fields - {}", parsed.size(), parsed.keySet());
+            return parsed;
         } catch (Exception e) {
-            log.warn("Failed to parse recipient data JSON, using empty map: {}", e.getMessage());
+            log.error("CRITICAL: Failed to parse recipient data JSON, using empty map. JSON: {}, Error: {}",
+                    recipientDataJson.substring(0, Math.min(200, recipientDataJson.length())), e.getMessage());
             return new HashMap<>();
         }
     }
