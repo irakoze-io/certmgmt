@@ -10,7 +10,6 @@ import tech.seccertificate.certmgmt.exception.CustomerNotFoundException;
 import tech.seccertificate.certmgmt.exception.TenantSchemaCreationException;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
 
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;

@@ -1,6 +1,8 @@
 package tech.seccertificate.certmgmt.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import tech.seccertificate.certmgmt.entity.Certificate;
 
@@ -14,13 +16,17 @@ public interface CertificateRepository extends JpaRepository<Certificate, UUID>,
 
     Optional<Certificate> findByCertificateNumber(String certificateNumber);
 
-    List<Certificate> findByCustomerId(Long customerId);
+    @Query("SELECT c FROM Certificate c LEFT JOIN FETCH c.issuedByUser WHERE c.customerId = :customerId")
+    List<Certificate> findByCustomerId(@Param("customerId") Long customerId);
 
-    List<Certificate> findByTemplateVersionId(UUID templateVersionId);
+    @Query("SELECT c FROM Certificate c LEFT JOIN FETCH c.issuedByUser WHERE c.templateVersionId = :templateVersionId")
+    List<Certificate> findByTemplateVersionId(@Param("templateVersionId") UUID templateVersionId);
 
-    List<Certificate> findByStatus(Certificate.CertificateStatus status);
+    @Query("SELECT c FROM Certificate c LEFT JOIN FETCH c.issuedByUser WHERE c.status = :status")
+    List<Certificate> findByStatus(@Param("status") Certificate.CertificateStatus status);
 
-    List<Certificate> findByCustomerIdAndStatus(Long customerId, Certificate.CertificateStatus status);
+    @Query("SELECT c FROM Certificate c LEFT JOIN FETCH c.issuedByUser WHERE c.customerId = :customerId AND c.status = :status")
+    List<Certificate> findByCustomerIdAndStatus(@Param("customerId") Long customerId, @Param("status") Certificate.CertificateStatus status);
 
     List<Certificate> findByIssuedAtBetween(LocalDateTime start, LocalDateTime end);
 
@@ -33,4 +39,10 @@ public interface CertificateRepository extends JpaRepository<Certificate, UUID>,
     long countByStatus(Certificate.CertificateStatus status);
 
     boolean existsByCertificateNumber(String certificateNumber);
+
+    @Query("SELECT c FROM Certificate c LEFT JOIN FETCH c.issuedByUser WHERE c.status = :status AND c.previewGeneratedAt < :cutoffTime")
+    List<Certificate> findByStatusAndPreviewGeneratedAtBefore(
+            @Param("status") Certificate.CertificateStatus status,
+            @Param("cutoffTime") LocalDateTime cutoffTime
+    );
 }

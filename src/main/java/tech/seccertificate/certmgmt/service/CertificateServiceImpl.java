@@ -1,8 +1,12 @@
 package tech.seccertificate.certmgmt.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tech.seccertificate.certmgmt.config.TenantContext;
@@ -24,7 +28,7 @@ import java.util.*;
  * Implementation of CertificateService.
  * Handles certificate generation (sync + async), CRUD operations, status management,
  * and certificate verification.
- * 
+ *
  * <p>All operations require tenant context to be set (via TenantResolutionFilter
  * or programmatically using TenantService).
  */
@@ -44,12 +48,14 @@ public class CertificateServiceImpl implements CertificateService {
     private final PdfGenerationService pdfGenerationService;
     private final StorageService storageService;
     private final MessageQueueService messageQueueService;
+    private final FieldSchemaValidator fieldSchemaValidator;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional
-    public Certificate generateCertificate(Certificate certificate) {
-        log.info("Generating certificate synchronously for template version: {}", 
-                certificate.getTemplateVersionId());
+    public Certificate generateCertificate(Certificate certificate, boolean isPreview) {
+        log.info("Generating certificate {} for template version: {}",
+                isPreview ? "preview" : "synchronously", certificate.getTemplateVersionId());
 
         tenantSchemaValidator.validateTenantSchema("generateCertificate");
         validateCertificate(certificate);
@@ -86,13 +92,21 @@ public class CertificateServiceImpl implements CertificateService {
             throw new IllegalArgumentException("Recipient data is required");
         }
 
+        // Set issuedBy from current authenticated user if not provided
+        if (certificate.getIssuedBy() == null) {
+            UUID currentUserId = getCurrentUserId();
+            if (currentUserId != null) {
+                certificate.setIssuedBy(currentUserId);
+            }
+        }
+
         // Validate customer limits
         validateCustomerLimits(certificate.getCustomerId());
 
         try {
             // Save certificate with PENDING status
             var savedCertificate = certificateRepository.save(certificate);
-            log.info("Certificate created with ID: {} and status: {}", 
+            log.info("Certificate created with ID: {} and status: {}",
                     savedCertificate.getId(), savedCertificate.getStatus());
 
             // TODO: Implement synchronous PDF generation
@@ -102,13 +116,13 @@ public class CertificateServiceImpl implements CertificateService {
             // 4. Upload PDF to S3/MinIO
             // 5. Generate hash and sign
             // 6. Update certificate status to ISSUED
-            
+
             // For now, mark as PROCESSING (will be updated by PDF generation)
             savedCertificate.setStatus(Certificate.CertificateStatus.PROCESSING);
             savedCertificate = certificateRepository.save(savedCertificate);
 
-            // Simulate PDF generation (remove when actual implementation is added)
-            processCertificateGeneration(savedCertificate);
+            // Generate PDF (preview or final)
+            processCertificateGeneration(savedCertificate, isPreview);
 
             return savedCertificate;
         } catch (DataIntegrityViolationException e) {
@@ -119,9 +133,9 @@ public class CertificateServiceImpl implements CertificateService {
 
     @Override
     @Transactional
-    public Certificate generateCertificateAsync(Certificate certificate) {
-        log.info("Generating certificate asynchronously for template version: {}", 
-                certificate.getTemplateVersionId());
+    public Certificate generateCertificateAsync(Certificate certificate, boolean isPreview) {
+        log.info("Generating certificate {} for template version: {}",
+                isPreview ? "preview asynchronously" : "asynchronously", certificate.getTemplateVersionId());
 
         tenantSchemaValidator.validateTenantSchema("generateCertificateAsync");
         validateCertificate(certificate);
@@ -152,6 +166,14 @@ public class CertificateServiceImpl implements CertificateService {
             throw new IllegalArgumentException("Recipient data is required");
         }
 
+        // Set issuedBy from current authenticated user if not provided
+        if (certificate.getIssuedBy() == null) {
+            UUID currentUserId = getCurrentUserId();
+            if (currentUserId != null) {
+                certificate.setIssuedBy(currentUserId);
+            }
+        }
+
         validateCustomerLimits(certificate.getCustomerId());
 
         try {
@@ -161,7 +183,8 @@ public class CertificateServiceImpl implements CertificateService {
             // Send message to PDF generation queue
             messageQueueService.sendCertificateGenerationMessage(
                     savedCertificate.getId(),
-                    TenantContext.getTenantSchema()
+                    TenantContext.getTenantSchema(),
+                    isPreview
             );
 
             return savedCertificate;
@@ -183,7 +206,7 @@ public class CertificateServiceImpl implements CertificateService {
         }
 
         return certificates.stream()
-                .map(this::generateCertificate)
+                .map(cert -> generateCertificate(cert, false))
                 .toList();
     }
 
@@ -199,7 +222,7 @@ public class CertificateServiceImpl implements CertificateService {
         }
 
         return certificates.stream()
-                .map(this::generateCertificateAsync)
+                .map(cert -> generateCertificateAsync(cert, false))
                 .toList();
     }
 
@@ -351,7 +374,10 @@ public class CertificateServiceImpl implements CertificateService {
                 ));
 
         certificate.setStatus(Certificate.CertificateStatus.ISSUED);
-        certificate.setIssuedBy(issuedBy);
+        // Only update issuedBy if a non-null value is provided (preserve existing value otherwise)
+        if (issuedBy != null) {
+            certificate.setIssuedBy(issuedBy);
+        }
         if (certificate.getIssuedAt() == null) {
             certificate.setIssuedAt(LocalDateTime.now());
         }
@@ -416,17 +442,37 @@ public class CertificateServiceImpl implements CertificateService {
                 ));
 
         certificate.setStatus(Certificate.CertificateStatus.FAILED);
-        
-        // Store error message in metadata
-        // TODO: Parse existing metadata JSON and add error message
+
         if (errorMessage != null && !errorMessage.isEmpty()) {
-            // For now, append to metadata (simplified - should parse JSON properly)
-            var currentMetadata = certificate.getMetadata();
-            if (currentMetadata == null || currentMetadata.isEmpty()) {
-                certificate.setMetadata("{\"error\":\"" + errorMessage + "\"}");
-            } else {
-                // Simple append (should use proper JSON parsing)
-                certificate.setMetadata(currentMetadata.replace("}", ",\"error\":\"" + errorMessage + "\"}"));
+            try {
+                var currentMetadata = certificate.getMetadata();
+                Map<String, Object> metadataMap;
+
+                if (currentMetadata == null || currentMetadata.trim().isEmpty()) {
+                    metadataMap = new HashMap<>();
+                } else {
+                    try {
+                        metadataMap = objectMapper
+                                .readValue(currentMetadata, objectMapper
+                                        .getTypeFactory()
+                                        .constructMapType(Map.class, String.class, Object.class)
+                        );
+                    } catch (Exception e) {
+                        log.warn("Failed to parse existing metadata JSON for certificate {}, creating new metadata: {}",
+                                certificateId, e.getMessage());
+                        metadataMap = new HashMap<>();
+                    }
+                }
+                metadataMap.put("error", errorMessage);
+                metadataMap.put("errorTimestamp", LocalDateTime.now().toString());
+
+                certificate.setMetadata(objectMapper.writeValueAsString(metadataMap));
+            } catch (Exception e) {
+                log.error("Failed to update metadata with error message for certificate {}: {}",
+                        certificateId, e.getMessage(), e);
+
+                certificate.setMetadata("{\"error\":\"" +
+                        errorMessage.replace("\"", "\\\"") + "\"}");
             }
         }
 
@@ -469,11 +515,11 @@ public class CertificateServiceImpl implements CertificateService {
         // Example: JAVA-20240115-A3B2C1
         var datePrefix = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
         var randomSuffix = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
-        
+
         if (templateCode != null && !templateCode.isEmpty()) {
             return String.format("%s-%s-%s", templateCode.toUpperCase(), datePrefix, randomSuffix);
         }
-        
+
         return String.format("CERT-%s-%s", datePrefix, randomSuffix);
     }
 
@@ -498,6 +544,17 @@ public class CertificateServiceImpl implements CertificateService {
         // Validate recipient data
         if (certificate.getRecipientData() == null || certificate.getRecipientData().isEmpty()) {
             throw new IllegalArgumentException("Recipient data is required");
+        }
+
+        // Validate recipient data against field schema
+        try {
+            fieldSchemaValidator.validateRecipientData(
+                    certificate.getRecipientData(),
+                    templateVersion.getFieldSchema()
+            );
+        } catch (IllegalArgumentException e) {
+            log.error("Recipient data validation failed for certificate: {}", e.getMessage());
+            throw e;
         }
 
         // Validate certificate number format if provided
@@ -548,7 +605,7 @@ public class CertificateServiceImpl implements CertificateService {
 
             var bucketName = storageService.getDefaultBucketName();
             if (!storageService.fileExists(bucketName, certificate.getStoragePath())) {
-                log.warn("Certificate {} verification failed: PDF not found in storage at {}", 
+                log.warn("Certificate {} verification failed: PDF not found in storage at {}",
                         certificateId, certificate.getStoragePath());
                 return false;
             }
@@ -562,8 +619,8 @@ public class CertificateServiceImpl implements CertificateService {
                 var hashMatches = constantTimeEquals(computedHash, storedHash);
 
                 if (!hashMatches) {
-                    log.warn("Certificate {} verification failed: hash mismatch. Stored: {}, Computed: {}", 
-                            certificateId, storedHash.substring(0, Math.min(20, storedHash.length())), 
+                    log.warn("Certificate {} verification failed: hash mismatch. Stored: {}, Computed: {}",
+                            certificateId, storedHash.substring(0, Math.min(20, storedHash.length())),
                             computedHash.substring(0, Math.min(20, computedHash.length())));
                     return false;
                 }
@@ -582,7 +639,7 @@ public class CertificateServiceImpl implements CertificateService {
     public Optional<Certificate> verifyCertificateByHash(String hash) {
         // This is a public endpoint, so we don't validate tenant schema
         // Search across all tenant schemas to find the certificate with matching hash
-        
+
         if (hash == null || hash.trim().isEmpty()) {
             log.warn("Hash verification failed: hash is null or empty");
             return Optional.empty();
@@ -590,36 +647,36 @@ public class CertificateServiceImpl implements CertificateService {
 
         // Get all active customers to search their tenant schemas
         var customers = customerService.findActiveCustomers();
-        
+
         log.debug("Searching for certificate with hash across {} tenant schemas", customers.size());
-        
+
         // Search each tenant schema for the hash
         for (var customer : customers) {
             try {
                 var tenantSchema = customer.getTenantSchema();
                 var certificateHashOpt = certificateHashRepository
                         .findByHashValueInSchema(tenantSchema, hash);
-                
+
                 if (certificateHashOpt.isPresent()) {
                     var certificateHash = certificateHashOpt.get();
                     var certificate = certificateHash.getCertificate();
-                    
+
                     // Verify certificate is issued and valid
                     if (certificate.getStatus() == Certificate.CertificateStatus.ISSUED) {
                         log.info("Certificate found with hash in tenant schema: {}", tenantSchema);
                         return Optional.of(certificate);
                     } else {
-                        log.debug("Certificate found but not issued (status: {}) in schema: {}", 
+                        log.debug("Certificate found but not issued (status: {}) in schema: {}",
                                 certificate.getStatus(), tenantSchema);
                     }
                 }
             } catch (Exception e) {
-                log.warn("Error searching tenant schema {} for hash: {}", 
+                log.warn("Error searching tenant schema {} for hash: {}",
                         customer.getTenantSchema(), e.getMessage());
                 // Continue searching other schemas
             }
         }
-        
+
         log.debug("No certificate found with hash: {}", hash.substring(0, Math.min(20, hash.length())));
         return Optional.empty();
     }
@@ -731,16 +788,16 @@ public class CertificateServiceImpl implements CertificateService {
         // Check monthly certificate limit
         var currentMonthStart = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0);
         var currentMonthEnd = currentMonthStart.plusMonths(1).minusSeconds(1);
-        
+
         // Get all certificates for customer issued this month
         var allCertificates = certificateRepository.findByCustomerId(customerId);
         var certificatesThisMonth = allCertificates.stream()
-                .filter(cert -> cert.getIssuedAt() != null 
+                .filter(cert -> cert.getIssuedAt() != null
                         && !cert.getIssuedAt().isBefore(currentMonthStart)
                         && !cert.getIssuedAt().isAfter(currentMonthEnd))
                 .count();
 
-        if (customer.getMaxCertificatesPerMonth() != null 
+        if (customer.getMaxCertificatesPerMonth() != null
                 && certificatesThisMonth >= customer.getMaxCertificatesPerMonth()) {
             throw new IllegalArgumentException(
                     String.format("Customer %d has reached monthly certificate limit (%d)",
@@ -752,56 +809,81 @@ public class CertificateServiceImpl implements CertificateService {
     /**
      * Process certificate generation (synchronous path).
      * Generates PDF, uploads to storage, and creates hash record.
+     *
+     * @param certificate The certificate to process
+     * @param isPreview Whether this is a preview (PENDING status)
      */
-    private void processCertificateGeneration(Certificate certificate) {
-        log.info("Processing certificate generation for ID: {}", certificate.getId());
-        
+    private void processCertificateGeneration(Certificate certificate, boolean isPreview) {
+        log.info("Processing certificate generation for ID: {} (preview: {})", certificate.getId(), isPreview);
+
         try {
+            // Optimized two-pass generation:
+            // Pass 1: Render HTML once, generate PDF WITHOUT footer → calculate hash → save to DB
+            // Pass 2: Append footer to cached HTML, generate final PDF → store this PDF
+            // Optimization: Reuse HTML rendering to avoid expensive template processing twice
+
             // 1. Load template version
             var templateVersion = getTemplateVersion(certificate.getTemplateVersionId());
-            
-            // 2. Generate initial PDF to calculate hash
-            log.debug("Generating initial PDF for certificate: {}", certificate.getId());
-            var initialPdfOutputStream = pdfGenerationService.generatePdf(templateVersion, certificate);
-            var initialPdfBytes = initialPdfOutputStream.toByteArray();
-            
-            // 3. Generate hash from PDF content
-            var hashValue = generateHashFromPdfContent(initialPdfBytes);
+
+            // 2. Render HTML without footer (this is the expensive part - do it once)
+            log.debug("Rendering HTML template for certificate: {}", certificate.getId());
+            var htmlWithoutFooter = pdfGenerationService.renderHtml(templateVersion, certificate, false);
+
+            // 3. Generate PDF from rendered HTML (for hash calculation)
+            log.debug("Generating PDF without footer for hash calculation: {}", certificate.getId());
+            var pdfWithoutFooter = pdfGenerationService.convertHtmlToPdf(htmlWithoutFooter, templateVersion);
+            var hashValue = generateHashFromPdfContent(pdfWithoutFooter.toByteArray());
+
+            // 4. Save hash to database
             certificate.setSignedHash(hashValue);
-            
-            // 4. Create certificate hash record (needed for PDF regeneration with hash embedded)
             var certificateHash = CertificateHash.builder()
                     .certificate(certificate)
                     .hashAlgorithm("SHA-256")
                     .hashValue(hashValue)
                     .build();
             certificateHashRepository.save(certificateHash);
-            
-            // 5. Regenerate PDF with hash and QR code embedded
-            // Now that hash is saved, it will be available in template context
-            log.debug("Regenerating PDF with hash embedded for certificate: {}", certificate.getId());
-            var finalPdfOutputStream = pdfGenerationService.generatePdf(templateVersion, certificate);
-            var finalPdfBytes = finalPdfOutputStream.toByteArray();
-            
-            // 6. Generate storage path
+
+            // 5. Append verification footer to cached HTML (fast string operation)
+            log.debug("Appending verification footer to rendered HTML: {}", certificate.getId());
+            var htmlWithFooter = pdfGenerationService.appendVerificationFooterToHtml(
+                    htmlWithoutFooter, certificate);
+
+            // 6. Generate final PDF from HTML with footer (reusing rendered content)
+            log.debug("Generating final PDF with verification footer: {}", certificate.getId());
+            var finalPdf = pdfGenerationService.convertHtmlToPdf(htmlWithFooter, templateVersion);
+
+            // 7. Generate storage path
             var storagePath = generateStoragePath(certificate);
             certificate.setStoragePath(storagePath);
-            
-            // 7. Upload final PDF with hash embedded to MinIO/S3
-            log.debug("Uploading PDF with hash embedded to storage: {}", storagePath);
+
+            // 6. Upload final PDF to storage
+            log.debug("Uploading final PDF to storage: {}", storagePath);
             storageService.uploadFile(
                     storageService.getDefaultBucketName(),
                     storagePath,
-                    finalPdfBytes,
+                    finalPdf.toByteArray(),
                     PDF_CONTENT_TYPE
             );
-            
-            // 8. Mark as issued
-            certificate.setStatus(Certificate.CertificateStatus.ISSUED);
+
+            // 7. Mark as issued or pending (preview)
+            if (isPreview) {
+                certificate.setStatus(Certificate.CertificateStatus.PENDING);
+                certificate.setPreviewGeneratedAt(LocalDateTime.now());
+                log.info("Certificate preview generated for ID: {}, storage path: {}",
+                        certificate.getId(), storagePath);
+            } else {
+                certificate.setStatus(Certificate.CertificateStatus.ISSUED);
+                if (certificate.getIssuedBy() == null) {
+                    // Set issuedBy from current authenticated user if not already set
+                    UUID currentUserId = getCurrentUserId();
+                    if (currentUserId != null) {
+                        certificate.setIssuedBy(currentUserId);
+                    }
+                }
+                log.info("Certificate generation completed for ID: {}, storage path: {}",
+                        certificate.getId(), storagePath);
+            }
             certificateRepository.save(certificate);
-            
-            log.info("Certificate generation completed for ID: {}, storage path: {}", 
-                    certificate.getId(), storagePath);
         } catch (Exception e) {
             log.error("Failed to process certificate generation for ID: {}", certificate.getId(), e);
             // Use internal helper to avoid @Transactional self-invocation warning
@@ -826,7 +908,7 @@ public class CertificateServiceImpl implements CertificateService {
 
     /**
      * Generate SHA-256 hash from actual PDF content.
-     * 
+     *
      * @param pdfContent The PDF file content as byte array
      * @return Base64-encoded SHA-256 hash
      */
@@ -842,7 +924,7 @@ public class CertificateServiceImpl implements CertificateService {
 
     /**
      * Constant-time string comparison to prevent timing attacks.
-     * 
+     *
      * @param a First string
      * @param b Second string
      * @return true if strings are equal, false otherwise
@@ -859,5 +941,163 @@ public class CertificateServiceImpl implements CertificateService {
             result |= a.charAt(i) ^ b.charAt(i);
         }
         return result == 0;
+    }
+
+    /**
+     * Get the current authenticated user's ID from the security context.
+     *
+     * @return UUID of the current user, or null if not authenticated
+     */
+    private UUID getCurrentUserId() {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated()) {
+                log.warn("No authenticated user found in security context");
+                return null;
+            }
+
+            // Extract user ID from JWT token
+            Object principal = authentication.getPrincipal();
+            log.debug("Principal type: {}", principal != null ? principal.getClass().getName() : "null");
+
+            if (principal instanceof Jwt jwt) {
+                // Log all claims for debugging
+                log.debug("JWT claims: {}", jwt.getClaims());
+
+                // Try to get user ID from different claim names
+                String userIdStr = jwt.getClaimAsString("user_id");
+                log.debug("Claim 'user_id': {}", userIdStr);
+
+                if (userIdStr == null || userIdStr.isEmpty()) {
+                    userIdStr = jwt.getClaimAsString("userId");
+                    log.debug("Claim 'userId': {}", userIdStr);
+                }
+                if (userIdStr == null || userIdStr.isEmpty()) {
+                    userIdStr = jwt.getClaimAsString("sub");
+                    log.debug("Claim 'sub': {}", userIdStr);
+                }
+
+                if (userIdStr != null && !userIdStr.isEmpty()) {
+                    log.debug("Successfully extracted user ID: {}", userIdStr);
+                    return UUID.fromString(userIdStr);
+                } else {
+                    log.warn("User ID claim not found in JWT token. Available claims: {}", jwt.getClaims().keySet());
+                    return null;
+                }
+            } else {
+                log.warn("Principal is not a JWT token: {}", principal.getClass().getName());
+                return null;
+            }
+        } catch (Exception e) {
+            log.error("Failed to extract user ID from security context", e);
+            return null;
+        }
+    }
+
+    @Override
+    @Transactional
+    public Certificate issueCertificate(UUID certificateId) {
+        log.info("Issuing preview certificate with ID: {}", certificateId);
+
+        tenantSchemaValidator.validateTenantSchema("issueCertificate");
+
+        var certificate = certificateRepository.findById(certificateId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Certificate not found with ID: " + certificateId
+                ));
+
+        // Validate certificate is in PENDING status
+        if (certificate.getStatus() != Certificate.CertificateStatus.PENDING) {
+            throw new IllegalArgumentException(
+                    "Certificate must be in PENDING status to be issued. Current status: " + certificate.getStatus()
+            );
+        }
+
+        // Validate preview was generated
+        if (certificate.getPreviewGeneratedAt() == null) {
+            throw new IllegalArgumentException(
+                    "Certificate does not have a preview. Please generate a preview first."
+            );
+        }
+
+        // Validate preview PDF exists
+        if (certificate.getStoragePath() == null || certificate.getStoragePath().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Certificate does not have a storage path. Preview PDF may not have been generated."
+            );
+        }
+
+        var bucketName = storageService.getDefaultBucketName();
+        if (!storageService.fileExists(bucketName, certificate.getStoragePath())) {
+            throw new IllegalArgumentException(
+                    "Preview PDF not found in storage. It may have been cleaned up."
+            );
+        }
+
+        // Promote to ISSUED status and reuse existing PDF
+        certificate.setStatus(Certificate.CertificateStatus.ISSUED);
+        if (certificate.getIssuedBy() == null) {
+            UUID currentUserId = getCurrentUserId();
+            if (currentUserId != null) {
+                certificate.setIssuedBy(currentUserId);
+            }
+        }
+        if (certificate.getIssuedAt() == null) {
+            certificate.setIssuedAt(LocalDateTime.now());
+        }
+
+        var issuedCertificate = certificateRepository.save(certificate);
+        log.info("Certificate issued successfully with ID: {}", certificateId);
+        return issuedCertificate;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Certificate> findPreviewCertificatesForCleanup(int minutesOld) {
+        tenantSchemaValidator.validateTenantSchema("findPreviewCertificatesForCleanup");
+
+        var cutoffTime = LocalDateTime.now().minusMinutes(minutesOld);
+        log.debug("Finding preview certificates older than {} minutes (cutoff: {})", minutesOld, cutoffTime);
+
+        return certificateRepository.findByStatusAndPreviewGeneratedAtBefore(
+                Certificate.CertificateStatus.PENDING,
+                cutoffTime
+        );
+    }
+
+    @Override
+    @Transactional
+    public int cleanupOldPreviewPdfs(int minutesOld) {
+        log.info("Starting cleanup of preview PDFs older than {} minutes", minutesOld);
+
+        tenantSchemaValidator.validateTenantSchema("cleanupOldPreviewPdfs");
+
+        var certificatesToCleanup = findPreviewCertificatesForCleanup(minutesOld);
+        var bucketName = storageService.getDefaultBucketName();
+        int cleanedCount = 0;
+
+        for (var certificate : certificatesToCleanup) {
+            try {
+                if (certificate.getStoragePath() != null && !certificate.getStoragePath().isEmpty()) {
+                    // Delete PDF from storage
+                    storageService.deleteFile(bucketName, certificate.getStoragePath());
+
+                    // Clear storage path and preview timestamp, mark as revoked
+                    certificate.setStoragePath(null);
+                    certificate.setPreviewGeneratedAt(null);
+                    certificate.setStatus(Certificate.CertificateStatus.REVOKED);
+                    certificateRepository.save(certificate);
+
+                    cleanedCount++;
+                    log.info("Cleaned up preview PDF and marked as REVOKED for certificate ID: {}", certificate.getId());
+                }
+            } catch (Exception e) {
+                log.error("Failed to cleanup preview PDF for certificate ID: {}", certificate.getId(), e);
+                // Continue with next certificate
+            }
+        }
+
+        log.info("Cleaned up {} preview PDFs", cleanedCount);
+        return cleanedCount;
     }
 }

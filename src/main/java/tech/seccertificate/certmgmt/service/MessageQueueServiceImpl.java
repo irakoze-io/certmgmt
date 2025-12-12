@@ -19,16 +19,16 @@ public class MessageQueueServiceImpl implements MessageQueueService {
     private final RabbitTemplate rabbitTemplate;
 
     @Override
-    public void sendCertificateGenerationMessage(UUID certificateId, String tenantSchema) {
-        var message = new CertificateGenerationMessage(certificateId, tenantSchema);
-        
+    public void sendCertificateGenerationMessage(UUID certificateId, String tenantSchema, boolean isPreview) {
+        var message = new CertificateGenerationMessage(certificateId, tenantSchema, isPreview);
+
         try {
             rabbitTemplate.convertAndSend(CERTIFICATE_EXCHANGE, ROUTING_KEY_GENERATE, message);
-            log.info("Certificate generation message sent to queue: certificateId={}, tenantSchema={}", 
-                    certificateId, tenantSchema);
+            log.info("Certificate generation message sent to queue: certificateId={}, tenantSchema={}, isPreview={}",
+                    certificateId, tenantSchema, isPreview);
         } catch (Exception e) {
-            log.error("Failed to send certificate generation message to queue: certificateId={}, tenantSchema={}", 
-                    certificateId, tenantSchema, e);
+            log.error("Failed to send certificate generation message to queue: certificateId={}, tenantSchema={}, isPreview={}",
+                    certificateId, tenantSchema, isPreview, e);
             throw new RuntimeException("Failed to queue certificate for async processing", e);
         }
     }

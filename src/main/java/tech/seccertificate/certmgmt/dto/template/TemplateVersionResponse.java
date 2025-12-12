@@ -56,6 +56,9 @@ public class TemplateVersionResponse {
     @Schema(description = "User ID who created this version", example = "770e8400-e29b-41d4-a716-446655440000")
     private UUID createdBy;
 
+    @Schema(description = "Full name of user who created this version", example = "John Doe")
+    private String createdByName;
+
     @Schema(description = "Date when version was created", example = "2024-01-15T10:30:00")
     private LocalDateTime createdAt;
 }

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Certificate of Completion</title>
+</head>
+<body>
+  <!-- Outer container with green border -->
+  <div class="certificate-outer">
+    <!-- Inner container with blue border -->
+    <div class="certificate-inner">
+      
+      <!-- Main Title -->
+      <h1 class="certificate-title">CERTIFICATE OF COMPLETION</h1>
+      
+      <!-- Main Body Content -->
+      <div class="certificate-body">
+        <p class="intro-text">This is to certify that</p>
+        
+        <!-- Student Name -->
+        <div class="student-name" th:text="${recipient.name} ?: '{{recipient.name}}'">Student Name</div>
+        
+        <!-- Completion Statement -->
+        <p class="completion-text">Has completed the course and passed the minimum score of 90% on the final test</p>
+        
+        <!-- Course Title -->
+        <div class="course-title" th:text="${templateName} ?: '{{templateName}}'">Course Name</div>
+        
+        <!-- Additional Information URL -->
+        <p class="info-url" th:if="${downloadUrl != null && !downloadUrl.isEmpty()}">
+          More about the certificate: <span th:text="${downloadUrl}"></span>
+        </p>
+        
+        <!-- Additional Fields (centered, field value space field name format) -->
+        <!-- Automatically displays all recipient fields except 'name' -->
+        <div class="additional-fields" th:if="${recipient != null}">
+          <div th:each="field : ${recipient}" 
+               th:if="${field.key != 'name'}" 
+               class="field-item">
+            <span th:text="${field.value} + ' ' + ${field.key}"></span>
+          </div>
+        </div>
+        
+        <!-- Fallback for simple templates without Thymeleaf -->
+        <!-- Manually add fields here if not using Thymeleaf -->
+        <!-- Example: <div class="field-item">{{recipient.email}} email</div> -->
+      </div>
+      
+      <!-- Brand/Logo Section -->
+      <div class="brand-section">
+        <span class="brand-logo">S</span>
+        <span class="brand-name">supersimple.dev</span>
+      </div>
+      
+      <!-- Bottom Footer Section -->
+      <div class="certificate-footer">
+        <!-- Left: Issued Date and Download URL -->
+        <div class="footer-left">
+          <div class="issued-date" th:text="'Issued: ' + (${currentDate} ?: '{{currentDate}}')">Issued: Date</div>
+          <div class="download-url" th:if="${downloadUrl != null && !downloadUrl.isEmpty()}">
+            Download: <span th:text="${downloadUrl}"></span>
+          </div>
+          <div class="download-url" th:unless="${downloadUrl != null && !downloadUrl.isEmpty()}">
+            Download: <span th:text="${'{{downloadUrl}}'}"></span>
+          </div>
+        </div>
+        
+        <!-- Right: Certificate ID and QR Code -->
+        <div class="footer-right">
+          <!-- Achievement Emblem -->
+          <div class="achievement-emblem">
+            <div class="emblem-text">CERTIFICATE OF</div>
+            <div class="emblem-text">ACHIEVEMENT</div>
+            <div class="emblem-stars">★ ★ ★</div>
+          </div>
+          
+          <!-- Certificate ID -->
+          <div class="certificate-id" th:text="'Certificate ID: ' + (${certificateNumber} ?: '{{certificateNumber}}')">
+            Certificate ID: ID
+          </div>
+          
+          <!-- QR Code -->
+          <div class="qr-code-container" th:if="${qrCodeImage != null && !qrCodeImage.isEmpty()}">
+            <img th:src="${qrCodeImage}" alt="QR Code" class="qr-code-image" />
+          </div>
+          <div class="qr-code-container" th:unless="${qrCodeImage != null && !qrCodeImage.isEmpty()}">
+            <img src="{{qrCodeImage}}" alt="QR Code" class="qr-code-image" />
+          </div>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+</body>
+</html>

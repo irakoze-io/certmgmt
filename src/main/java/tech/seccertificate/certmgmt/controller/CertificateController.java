@@ -2,11 +2,19 @@ package tech.seccertificate.certmgmt.controller;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import tech.seccertificate.certmgmt.dto.Response;
@@ -46,6 +54,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/certificates")
 @RequiredArgsConstructor
+@Tag(name = "Certificates", description = "Certificate generation, management, and verification operations")
 public class CertificateController {
 
     private final CertificateService certificateService;
@@ -54,33 +63,35 @@ public class CertificateController {
 
     /**
      * Generate a certificate (synchronously or asynchronously).
-     * 
+     *
      * @param request The certificate generation request
      * @return Created certificate response with 201 status
      */
     @PostMapping
     public ResponseEntity<Response<CertificateResponse>> generateCertificate(
             @Valid @RequestBody GenerateCertificateRequest request) {
-        log.info("Generating certificate for template version: {}", request.getTemplateVersionId());
-        
+        boolean isPreview = Boolean.TRUE.equals(request.getPreview());
+        log.info("Generating certificate {} for template version: {}",
+                isPreview ? "preview" : "", request.getTemplateVersionId());
+
         var certificate = mapToEntity(request);
         Certificate createdCertificate;
-        
+
         if (Boolean.TRUE.equals(request.getSynchronous())) {
             log.debug("Generating certificate synchronously");
-            createdCertificate = certificateService.generateCertificate(certificate);
+            createdCertificate = certificateService.generateCertificate(certificate, isPreview);
         } else {
             log.debug("Generating certificate asynchronously");
-            createdCertificate = certificateService.generateCertificateAsync(certificate);
+            createdCertificate = certificateService.generateCertificateAsync(certificate, isPreview);
         }
-        
+
         var response = mapToDTO(createdCertificate);
         var location = URI.create("/api/certificates/" + createdCertificate.getId());
-        var unifiedResponse = Response.success(
-                "Certificate generated successfully",
-                response
-        );
-        
+        var message = isPreview ?
+                "Certificate preview generated successfully" :
+                "Certificate generated successfully";
+        var unifiedResponse = Response.success(message, response);
+
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .location(location)
@@ -105,7 +116,7 @@ public class CertificateController {
                 "Certificate retrieved successfully",
                 response
         );
-        
+
         return ResponseEntity.ok(unifiedResponse);
     }
 
@@ -226,21 +237,42 @@ public class CertificateController {
     /**
      * Revoke a certificate.
      * Sets status to REVOKED.
-     * 
+     *
      * @param id The certificate ID
      * @return Revoked certificate response with 200 status, or 404 if not found
      */
     @PostMapping("/{id}/revoke")
     public ResponseEntity<Response<CertificateResponse>> revokeCertificate(@PathVariable @NotNull UUID id) {
         log.info("Revoking certificate with ID: {}", id);
-        
+
         var revokedCertificate = certificateService.revokeCertificate(id);
         var response = mapToDTO(revokedCertificate);
         var unifiedResponse = Response.success(
                 "Certificate revoked successfully",
                 response
         );
-        
+
+        return ResponseEntity.ok(unifiedResponse);
+    }
+
+    /**
+     * Issue a preview certificate.
+     * Promotes a PENDING certificate to ISSUED status and reuses the existing preview PDF.
+     *
+     * @param id The certificate ID
+     * @return Issued certificate response with 200 status, or 404 if not found
+     */
+    @PostMapping("/{id}/issue")
+    public ResponseEntity<Response<CertificateResponse>> issueCertificate(@PathVariable @NotNull UUID id) {
+        log.info("Issuing preview certificate with ID: {}", id);
+
+        var issuedCertificate = certificateService.issueCertificate(id);
+        var response = mapToDTO(issuedCertificate);
+        var unifiedResponse = Response.success(
+                "Certificate issued successfully",
+                response
+        );
+
         return ResponseEntity.ok(unifiedResponse);
     }
 
@@ -274,10 +306,34 @@ public class CertificateController {
     /**
      * Public verification endpoint for certificate hash.
      * This endpoint doesn't require authentication and can be used for public verification.
-     * 
+     *
      * @param hash The certificate hash to verify
      * @return Certificate response with 200 status if valid, or 404 if not found/invalid
      */
+    @Operation(
+            summary = "Verify certificate by hash",
+            description = "Public endpoint for verifying certificate authenticity using the certificate hash. " +
+                    "No authentication required.",
+            security = @SecurityRequirement(name = "")
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Certificate verified successfully",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = Response.class)
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Certificate not found or invalid hash",
+                    content = @Content(
+                            mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            schema = @Schema(implementation = Response.class)
+                    )
+            )
+    })
     @GetMapping("/verify/{hash}")
     public ResponseEntity<Response<CertificateResponse>> verifyCertificate(@PathVariable @NotNull String hash) {
         log.debug("Verifying certificate with hash: {}", hash);
@@ -430,7 +486,16 @@ public class CertificateController {
                 metadata = Map.of();
             }
         }
-        
+
+        String issuedByName = null;
+        if (certificate.getIssuedByUser() != null) {
+            var firstName = certificate.getIssuedByUser().getFirstName() != null ?
+                certificate.getIssuedByUser().getFirstName() : "";
+            var lastName = certificate.getIssuedByUser().getLastName() != null ?
+                certificate.getIssuedByUser().getLastName() : "";
+            issuedByName = (firstName + " " + lastName).trim();
+        }
+
         var response = CertificateResponse.builder()
                 .id(certificate.getId())
                 .customerId(certificate.getCustomerId())
@@ -444,6 +509,7 @@ public class CertificateController {
                 .issuedAt(certificate.getIssuedAt())
                 .expiresAt(certificate.getExpiresAt())
                 .issuedBy(certificate.getIssuedBy())
+                .issuedByName(issuedByName)
                 .createdAt(certificate.getCreatedAt())
                 .updatedAt(certificate.getUpdatedAt())
                 .build();

@@ -284,6 +284,14 @@ public class TemplateServiceImpl implements TemplateService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<TemplateVersion> findVersionsByCustomerId(Long customerId) {
+        tenantSchemaValidator.validateTenantSchema("findVersionsByCustomerId");
+        log.debug("Finding all template versions for customer ID: {}", customerId);
+        return templateVersionRepository.findByTemplate_CustomerId(customerId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<TemplateVersion> findLatestPublishedVersion(Long templateId) {
         tenantSchemaValidator.validateTenantSchema("findLatestPublishedVersion");
         return templateVersionRepository.findFirstByTemplate_IdAndStatusOrderByVersionDesc(

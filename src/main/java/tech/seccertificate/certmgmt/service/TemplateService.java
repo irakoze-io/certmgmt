@@ -130,6 +130,14 @@ public interface TemplateService {
     List<TemplateVersion> findVersionsByTemplateId(Long templateId);
 
     /**
+     * Find all template versions for a customer (across all templates).
+     *
+     * @param customerId The customer ID
+     * @return List of template versions for all templates belonging to the customer
+     */
+    List<TemplateVersion> findVersionsByCustomerId(Long customerId);
+
+    /**
      * Find the latest published version of a template.
      *
      * @param templateId The template ID

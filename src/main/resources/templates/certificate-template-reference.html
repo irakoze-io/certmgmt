@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>Certificate of Completion</title>
+</head>
+<body>
+  <div class="certificate-outer">
+    <div class="certificate-inner">
+      
+      <h1 class="certificate-title">CERTIFICATE OF COMPLETION</h1>
+      
+      <div class="certificate-body">
+        <p class="intro-text">This is to certify that</p>
+        
+        <div class="student-name">{{recipient.name}}</div>
+        
+        <p class="completion-text">Has completed the course and passed the minimum score of 90% on the final test</p>
+
+        <div class="course-title">{{templateName}}</div>
+        
+        <p class="info-url">More about the certificate: {{downloadUrl}}</p>
+        
+        <!-- Additional Fields (centered, field value space field name format) -->
+        <!-- For each additional field in recipient data (excluding name), display as: value fieldName -->
+        <!-- Example: If recipient has {name: "John", email: "john@example.com", score: "95"}, -->
+        <!-- it will display: john@example.com email (on one line), then 95 score (on next line) -->
+        <div class="additional-fields">
+          <!-- Thymeleaf version (if using Thymeleaf syntax) -->
+          <!--
+          <div th:each="field : ${recipient}" th:if="${field.key != 'name'}" class="field-item">
+            <span th:text="${field.value} + ' ' + ${field.key}"></span>
+          </div>
+          -->
+          
+          <!-- Simple template version - manually add fields as needed -->
+          <!-- Example: <div class="field-item">{{recipient.email}} email</div> -->
+          <!-- Example: <div class="field-item">{{recipient.score}} score</div> -->
+          <!-- Add more fields here following the pattern: {{recipient.fieldName}} fieldName -->
+        </div>
+      </div>
+      
+      <!-- Brand/Logo Section -->
+      <div class="brand-section">
+        <span class="brand-logo">S</span>
+        <span class="brand-name">supersimple.dev</span>
+      </div>
+      
+      <div class="certificate-footer">
+        <div class="footer-left">
+          <div class="issued-date">Issued: {{currentDate}}</div>
+          <div class="download-url">Download: {{downloadUrl}}</div>
+        </div>
+        
+        <div class="footer-right">
+          <div class="achievement-emblem">
+            <div class="emblem-text">CERTIFICATE OF</div>
+            <div class="emblem-text">ACHIEVEMENT</div>
+            <!-- <div class="emblem-stars">★ ★ ★</div> -->
+          </div>
+          
+          <div class="certificate-id">Certificate ID: {{certificateNumber}}</div>
+          
+          <div class="qr-code-container">
+            <img src="{{qrCodeImage}}" alt="QR Code" class="qr-code-image" />
+          </div>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+</body>
+</html>

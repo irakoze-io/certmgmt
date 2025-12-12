@@ -7,6 +7,7 @@ target/
 ### Gradle ###
 .gradle
 build/
+bin/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
@@ -59,12 +60,15 @@ logback-spring.xml
 /src/main/java/tech/seccertificate/certmgmt/security/TENANT_IN_JWT_ANALYSIS.md
 /secret.key
 /docs/
+/scripts/
 /logs/
 /qodana.yaml
 /src/main/java/tech/seccertificate/certmgmt/config/README_TENANT_SCHEMA_SWITCHING.md
 /INTEGRATION_TESTS_PROGRESS.md
 /TESTCONTAINERS_SETUP.md
 /E2E_TEST_COVERAGE.md
+/FRONTEND_ARCHITECTURE.md
+/UI_Integration.md
 /RABBITMQ_FIX_DOCUMENTATION.md
 /rabbitmq_bug_fix_work.md
 /minio-data/
@@ -72,3 +76,11 @@ logback-spring.xml
 .DS_Store
 ./.DS_Store
 /.fleet
+.aider*
+/CERTIFICATE_INTEGRATION_GUIDE.md
+/TEMPLATE_CREATION_CHAINING_GUIDE.md
+/TEMPLATE_VERSION_TO_CERTIFICATE_FLOW.md
+/FIND_TEMPLATE_IN_DATABASE.md
+/Certificate_Issuance_API_Guide.md
+/src/main/resources/templates/README.md
+/PERFORMANCE_OPTIMIZATION_GUIDE.md

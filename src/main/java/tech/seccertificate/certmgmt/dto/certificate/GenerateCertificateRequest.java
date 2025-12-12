@@ -3,10 +3,7 @@ package tech.seccertificate.certmgmt.dto.certificate;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -16,12 +13,13 @@ import java.util.UUID;
  * Request DTO for generating a new certificate.
  * Used for certificate generation API endpoint.
  */
-@Schema(description = "Request to generate a new certificate")
 @Data
 @Builder
+@ToString
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@Schema(description = "Request to generate a new certificate")
 public class GenerateCertificateRequest {
 
     @NotNull(message = "Template version ID is required")
@@ -56,7 +54,12 @@ public class GenerateCertificateRequest {
     private UUID issuedBy;
 
     @Builder.Default
-    @Schema(description = "Whether to generate PDF synchronously (default: false, async via RabbitMQ)", 
+    @Schema(description = "Whether to generate PDF synchronously (default: false, async via RabbitMQ)",
             example = "false", defaultValue = "false")
     private Boolean synchronous = false;
+
+    @Builder.Default
+    @Schema(description = "Whether to generate as preview (PENDING status). Preview PDFs are automatically cleaned up after 15 minutes if not issued",
+            example = "false", defaultValue = "false")
+    private Boolean preview = false;
 }
