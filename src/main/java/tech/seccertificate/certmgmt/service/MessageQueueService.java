@@ -13,6 +13,7 @@ public interface MessageQueueService {
      *
      * @param certificateId The certificate ID to process
      * @param tenantSchema The tenant schema name (for context)
+     * @param isPreview Whether this is a preview generation
      */
-    void sendCertificateGenerationMessage(UUID certificateId, String tenantSchema);
+    void sendCertificateGenerationMessage(UUID certificateId, String tenantSchema, boolean isPreview);
 }

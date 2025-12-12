@@ -5,28 +5,20 @@
   <title>Certificate of Completion</title>
 </head>
 <body>
-  <!-- Outer container with green border -->
   <div class="certificate-outer">
-    <!-- Inner container with blue border -->
     <div class="certificate-inner">
       
-      <!-- Main Title -->
       <h1 class="certificate-title">CERTIFICATE OF COMPLETION</h1>
       
-      <!-- Main Body Content -->
       <div class="certificate-body">
         <p class="intro-text">This is to certify that</p>
         
-        <!-- Student Name -->
         <div class="student-name">{{recipient.name}}</div>
         
-        <!-- Completion Statement -->
         <p class="completion-text">Has completed the course and passed the minimum score of 90% on the final test</p>
-        
-        <!-- Course Title -->
+
         <div class="course-title">{{templateName}}</div>
         
-        <!-- Additional Information URL -->
         <p class="info-url">More about the certificate: {{downloadUrl}}</p>
         
         <!-- Additional Fields (centered, field value space field name format) -->
@@ -54,27 +46,21 @@
         <span class="brand-name">supersimple.dev</span>
       </div>
       
-      <!-- Bottom Footer Section -->
       <div class="certificate-footer">
-        <!-- Left: Issued Date and Download URL -->
         <div class="footer-left">
           <div class="issued-date">Issued: {{currentDate}}</div>
           <div class="download-url">Download: {{downloadUrl}}</div>
         </div>
         
-        <!-- Right: Certificate ID and QR Code -->
         <div class="footer-right">
-          <!-- Achievement Emblem -->
           <div class="achievement-emblem">
             <div class="emblem-text">CERTIFICATE OF</div>
             <div class="emblem-text">ACHIEVEMENT</div>
-            <div class="emblem-stars">★ ★ ★</div>
+            <!-- <div class="emblem-stars">★ ★ ★</div> -->
           </div>
           
-          <!-- Certificate ID -->
           <div class="certificate-id">Certificate ID: {{certificateNumber}}</div>
           
-          <!-- QR Code -->
           <div class="qr-code-container">
             <img src="{{qrCodeImage}}" alt="QR Code" class="qr-code-image" />
           </div>

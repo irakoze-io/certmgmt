@@ -54,7 +54,12 @@ public class GenerateCertificateRequest {
     private UUID issuedBy;
 
     @Builder.Default
-    @Schema(description = "Whether to generate PDF synchronously (default: false, async via RabbitMQ)", 
+    @Schema(description = "Whether to generate PDF synchronously (default: false, async via RabbitMQ)",
             example = "false", defaultValue = "false")
     private Boolean synchronous = false;
+
+    @Builder.Default
+    @Schema(description = "Whether to generate as preview (PENDING status). Preview PDFs are automatically cleaned up after 15 minutes if not issued",
+            example = "false", defaultValue = "false")
+    private Boolean preview = false;
 }

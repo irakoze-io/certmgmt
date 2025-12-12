@@ -80,6 +80,7 @@ databaseChangeLog:
                           issued_at TIMESTAMP,
                           expires_at TIMESTAMP,
                           issued_by UUID,
+                          preview_generated_at TIMESTAMP WITH TIME ZONE,
                           created_at TIMESTAMP NOT NULL DEFAULT NOW(),
                           updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
                           CONSTRAINT chk_certificate_status CHECK (status IN (''PENDING'', ''PROCESSING'', ''ISSUED'', ''REVOKED'', ''FAILED''))
@@ -121,6 +122,7 @@ databaseChangeLog:
                   EXECUTE format('CREATE INDEX idx_%I_cert_number ON %I.certificate(certificate_number)', schema_name, schema_name);
                   EXECUTE format('CREATE INDEX idx_%I_cert_status ON %I.certificate(status)', schema_name, schema_name);
                   EXECUTE format('CREATE INDEX idx_%I_cert_issued_at ON %I.certificate(issued_at DESC)', schema_name, schema_name);
+                  EXECUTE format('CREATE INDEX idx_%I_cert_preview_generated_at ON %I.certificate(preview_generated_at)', schema_name, schema_name);
                   EXECUTE format('CREATE INDEX idx_%I_audit_created_at ON %I.audit_log(created_at DESC)', schema_name, schema_name);
                   EXECUTE format('CREATE INDEX idx_%I_audit_entity ON %I.audit_log(entity_type, entity_id)', schema_name, schema_name);
 
@@ -129,4 +131,5 @@ databaseChangeLog:
             splitStatements: false
             stripComments: false
       rollback:
-        sql: DROP FUNCTION IF EXISTS create_tenant_schema(VARCHAR);
+        - sql:
+            sql: DROP FUNCTION IF EXISTS create_tenant_schema(VARCHAR);

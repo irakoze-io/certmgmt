@@ -2,6 +2,7 @@ package tech.seccertificate.certmgmt.controller;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +44,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/templates/{templateId}/versions")
 @RequiredArgsConstructor
+@Tag(name = "Template Versions", description = "Template version management and lifecycle operations")
 public class TemplateVersionController {
 
     private final TemplateService templateService;

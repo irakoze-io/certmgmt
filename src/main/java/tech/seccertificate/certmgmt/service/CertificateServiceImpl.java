@@ -53,9 +53,9 @@ public class CertificateServiceImpl implements CertificateService {
 
     @Override
     @Transactional
-    public Certificate generateCertificate(Certificate certificate) {
-        log.info("Generating certificate synchronously for template version: {}",
-                certificate.getTemplateVersionId());
+    public Certificate generateCertificate(Certificate certificate, boolean isPreview) {
+        log.info("Generating certificate {} for template version: {}",
+                isPreview ? "preview" : "synchronously", certificate.getTemplateVersionId());
 
         tenantSchemaValidator.validateTenantSchema("generateCertificate");
         validateCertificate(certificate);
@@ -121,8 +121,8 @@ public class CertificateServiceImpl implements CertificateService {
             savedCertificate.setStatus(Certificate.CertificateStatus.PROCESSING);
             savedCertificate = certificateRepository.save(savedCertificate);
 
-            // Simulate PDF generation (remove when actual implementation is added)
-            processCertificateGeneration(savedCertificate);
+            // Generate PDF (preview or final)
+            processCertificateGeneration(savedCertificate, isPreview);
 
             return savedCertificate;
         } catch (DataIntegrityViolationException e) {
@@ -133,9 +133,9 @@ public class CertificateServiceImpl implements CertificateService {
 
     @Override
     @Transactional
-    public Certificate generateCertificateAsync(Certificate certificate) {
-        log.info("Generating certificate asynchronously for template version: {}",
-                certificate.getTemplateVersionId());
+    public Certificate generateCertificateAsync(Certificate certificate, boolean isPreview) {
+        log.info("Generating certificate {} for template version: {}",
+                isPreview ? "preview asynchronously" : "asynchronously", certificate.getTemplateVersionId());
 
         tenantSchemaValidator.validateTenantSchema("generateCertificateAsync");
         validateCertificate(certificate);
@@ -183,7 +183,8 @@ public class CertificateServiceImpl implements CertificateService {
             // Send message to PDF generation queue
             messageQueueService.sendCertificateGenerationMessage(
                     savedCertificate.getId(),
-                    TenantContext.getTenantSchema()
+                    TenantContext.getTenantSchema(),
+                    isPreview
             );
 
             return savedCertificate;
@@ -205,7 +206,7 @@ public class CertificateServiceImpl implements CertificateService {
         }
 
         return certificates.stream()
-                .map(this::generateCertificate)
+                .map(cert -> generateCertificate(cert, false))
                 .toList();
     }
 
@@ -221,7 +222,7 @@ public class CertificateServiceImpl implements CertificateService {
         }
 
         return certificates.stream()
-                .map(this::generateCertificateAsync)
+                .map(cert -> generateCertificateAsync(cert, false))
                 .toList();
     }
 
@@ -808,24 +809,33 @@ public class CertificateServiceImpl implements CertificateService {
     /**
      * Process certificate generation (synchronous path).
      * Generates PDF, uploads to storage, and creates hash record.
+     *
+     * @param certificate The certificate to process
+     * @param isPreview Whether this is a preview (PENDING status)
      */
-    private void processCertificateGeneration(Certificate certificate) {
-        log.info("Processing certificate generation for ID: {}", certificate.getId());
+    private void processCertificateGeneration(Certificate certificate, boolean isPreview) {
+        log.info("Processing certificate generation for ID: {} (preview: {})", certificate.getId(), isPreview);
 
         try {
+            // Optimized two-pass generation:
+            // Pass 1: Render HTML once, generate PDF WITHOUT footer → calculate hash → save to DB
+            // Pass 2: Append footer to cached HTML, generate final PDF → store this PDF
+            // Optimization: Reuse HTML rendering to avoid expensive template processing twice
+
             // 1. Load template version
             var templateVersion = getTemplateVersion(certificate.getTemplateVersionId());
 
-            // 2. Generate initial PDF to calculate hash
-            log.debug("Generating initial PDF for certificate: {}", certificate.getId());
-            var initialPdfOutputStream = pdfGenerationService.generatePdf(templateVersion, certificate);
-            var initialPdfBytes = initialPdfOutputStream.toByteArray();
+            // 2. Render HTML without footer (this is the expensive part - do it once)
+            log.debug("Rendering HTML template for certificate: {}", certificate.getId());
+            var htmlWithoutFooter = pdfGenerationService.renderHtml(templateVersion, certificate, false);
 
-            // 3. Generate hash from PDF content
-            var hashValue = generateHashFromPdfContent(initialPdfBytes);
+            // 3. Generate PDF from rendered HTML (for hash calculation)
+            log.debug("Generating PDF without footer for hash calculation: {}", certificate.getId());
+            var pdfWithoutFooter = pdfGenerationService.convertHtmlToPdf(htmlWithoutFooter, templateVersion);
+            var hashValue = generateHashFromPdfContent(pdfWithoutFooter.toByteArray());
+
+            // 4. Save hash to database
             certificate.setSignedHash(hashValue);
-
-            // 4. Create certificate hash record (needed for PDF regeneration with hash embedded)
             var certificateHash = CertificateHash.builder()
                     .certificate(certificate)
                     .hashAlgorithm("SHA-256")
@@ -833,38 +843,47 @@ public class CertificateServiceImpl implements CertificateService {
                     .build();
             certificateHashRepository.save(certificateHash);
 
-            // 5. Regenerate PDF with hash and QR code embedded
-            // Now that hash is saved, it will be available in template context
-            log.debug("Regenerating PDF with hash embedded for certificate: {}", certificate.getId());
-            var finalPdfOutputStream = pdfGenerationService.generatePdf(templateVersion, certificate);
-            var finalPdfBytes = finalPdfOutputStream.toByteArray();
+            // 5. Append verification footer to cached HTML (fast string operation)
+            log.debug("Appending verification footer to rendered HTML: {}", certificate.getId());
+            var htmlWithFooter = pdfGenerationService.appendVerificationFooterToHtml(
+                    htmlWithoutFooter, certificate);
 
-            // 6. Generate storage path
+            // 6. Generate final PDF from HTML with footer (reusing rendered content)
+            log.debug("Generating final PDF with verification footer: {}", certificate.getId());
+            var finalPdf = pdfGenerationService.convertHtmlToPdf(htmlWithFooter, templateVersion);
+
+            // 7. Generate storage path
             var storagePath = generateStoragePath(certificate);
             certificate.setStoragePath(storagePath);
 
-            // 7. Upload final PDF with hash embedded to MinIO/S3
-            log.debug("Uploading PDF with hash embedded to storage: {}", storagePath);
+            // 6. Upload final PDF to storage
+            log.debug("Uploading final PDF to storage: {}", storagePath);
             storageService.uploadFile(
                     storageService.getDefaultBucketName(),
                     storagePath,
-                    finalPdfBytes,
+                    finalPdf.toByteArray(),
                     PDF_CONTENT_TYPE
             );
 
-            // 8. Mark as issued - ensure issuedBy is set
-            certificate.setStatus(Certificate.CertificateStatus.ISSUED);
-            if (certificate.getIssuedBy() == null) {
-                // Set issuedBy from current authenticated user if not already set
-                UUID currentUserId = getCurrentUserId();
-                if (currentUserId != null) {
-                    certificate.setIssuedBy(currentUserId);
+            // 7. Mark as issued or pending (preview)
+            if (isPreview) {
+                certificate.setStatus(Certificate.CertificateStatus.PENDING);
+                certificate.setPreviewGeneratedAt(LocalDateTime.now());
+                log.info("Certificate preview generated for ID: {}, storage path: {}",
+                        certificate.getId(), storagePath);
+            } else {
+                certificate.setStatus(Certificate.CertificateStatus.ISSUED);
+                if (certificate.getIssuedBy() == null) {
+                    // Set issuedBy from current authenticated user if not already set
+                    UUID currentUserId = getCurrentUserId();
+                    if (currentUserId != null) {
+                        certificate.setIssuedBy(currentUserId);
+                    }
                 }
+                log.info("Certificate generation completed for ID: {}, storage path: {}",
+                        certificate.getId(), storagePath);
             }
             certificateRepository.save(certificate);
-
-            log.info("Certificate generation completed for ID: {}, storage path: {}",
-                    certificate.getId(), storagePath);
         } catch (Exception e) {
             log.error("Failed to process certificate generation for ID: {}", certificate.getId(), e);
             // Use internal helper to avoid @Transactional self-invocation warning
@@ -973,5 +992,112 @@ public class CertificateServiceImpl implements CertificateService {
             log.error("Failed to extract user ID from security context", e);
             return null;
         }
+    }
+
+    @Override
+    @Transactional
+    public Certificate issueCertificate(UUID certificateId) {
+        log.info("Issuing preview certificate with ID: {}", certificateId);
+
+        tenantSchemaValidator.validateTenantSchema("issueCertificate");
+
+        var certificate = certificateRepository.findById(certificateId)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Certificate not found with ID: " + certificateId
+                ));
+
+        // Validate certificate is in PENDING status
+        if (certificate.getStatus() != Certificate.CertificateStatus.PENDING) {
+            throw new IllegalArgumentException(
+                    "Certificate must be in PENDING status to be issued. Current status: " + certificate.getStatus()
+            );
+        }
+
+        // Validate preview was generated
+        if (certificate.getPreviewGeneratedAt() == null) {
+            throw new IllegalArgumentException(
+                    "Certificate does not have a preview. Please generate a preview first."
+            );
+        }
+
+        // Validate preview PDF exists
+        if (certificate.getStoragePath() == null || certificate.getStoragePath().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Certificate does not have a storage path. Preview PDF may not have been generated."
+            );
+        }
+
+        var bucketName = storageService.getDefaultBucketName();
+        if (!storageService.fileExists(bucketName, certificate.getStoragePath())) {
+            throw new IllegalArgumentException(
+                    "Preview PDF not found in storage. It may have been cleaned up."
+            );
+        }
+
+        // Promote to ISSUED status and reuse existing PDF
+        certificate.setStatus(Certificate.CertificateStatus.ISSUED);
+        if (certificate.getIssuedBy() == null) {
+            UUID currentUserId = getCurrentUserId();
+            if (currentUserId != null) {
+                certificate.setIssuedBy(currentUserId);
+            }
+        }
+        if (certificate.getIssuedAt() == null) {
+            certificate.setIssuedAt(LocalDateTime.now());
+        }
+
+        var issuedCertificate = certificateRepository.save(certificate);
+        log.info("Certificate issued successfully with ID: {}", certificateId);
+        return issuedCertificate;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Certificate> findPreviewCertificatesForCleanup(int minutesOld) {
+        tenantSchemaValidator.validateTenantSchema("findPreviewCertificatesForCleanup");
+
+        var cutoffTime = LocalDateTime.now().minusMinutes(minutesOld);
+        log.debug("Finding preview certificates older than {} minutes (cutoff: {})", minutesOld, cutoffTime);
+
+        return certificateRepository.findByStatusAndPreviewGeneratedAtBefore(
+                Certificate.CertificateStatus.PENDING,
+                cutoffTime
+        );
+    }
+
+    @Override
+    @Transactional
+    public int cleanupOldPreviewPdfs(int minutesOld) {
+        log.info("Starting cleanup of preview PDFs older than {} minutes", minutesOld);
+
+        tenantSchemaValidator.validateTenantSchema("cleanupOldPreviewPdfs");
+
+        var certificatesToCleanup = findPreviewCertificatesForCleanup(minutesOld);
+        var bucketName = storageService.getDefaultBucketName();
+        int cleanedCount = 0;
+
+        for (var certificate : certificatesToCleanup) {
+            try {
+                if (certificate.getStoragePath() != null && !certificate.getStoragePath().isEmpty()) {
+                    // Delete PDF from storage
+                    storageService.deleteFile(bucketName, certificate.getStoragePath());
+
+                    // Clear storage path and preview timestamp, mark as revoked
+                    certificate.setStoragePath(null);
+                    certificate.setPreviewGeneratedAt(null);
+                    certificate.setStatus(Certificate.CertificateStatus.REVOKED);
+                    certificateRepository.save(certificate);
+
+                    cleanedCount++;
+                    log.info("Cleaned up preview PDF and marked as REVOKED for certificate ID: {}", certificate.getId());
+                }
+            } catch (Exception e) {
+                log.error("Failed to cleanup preview PDF for certificate ID: {}", certificate.getId(), e);
+                // Continue with next certificate
+            }
+        }
+
+        log.info("Cleaned up {} preview PDFs", cleanedCount);
+        return cleanedCount;
     }
 }

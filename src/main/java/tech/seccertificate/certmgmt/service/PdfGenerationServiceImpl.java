@@ -65,11 +65,16 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
 
     @Override
     public ByteArrayOutputStream generatePdf(TemplateVersion templateVersion, Certificate certificate) {
-        log.info("Generating PDF for certificate ID: {}, Template Version ID: {}",
-                certificate.getId(), templateVersion.getId());
+        return generatePdf(templateVersion, certificate, true);
+    }
+
+    @Override
+    public ByteArrayOutputStream generatePdf(TemplateVersion templateVersion, Certificate certificate, boolean includeVerificationFooter) {
+        log.info("Generating PDF for certificate ID: {}, Template Version ID: {}, includeFooter: {}",
+                certificate.getId(), templateVersion.getId(), includeVerificationFooter);
 
         try {
-            var htmlContent = renderHtml(templateVersion, certificate);
+            var htmlContent = renderHtml(templateVersion, certificate, includeVerificationFooter);
 
             var pdfOutputStream = new ByteArrayOutputStream();
 
@@ -99,7 +104,12 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
 
     @Override
     public String renderHtml(TemplateVersion templateVersion, Certificate certificate) {
-        log.debug("Rendering HTML for certificate ID: {}", certificate.getId());
+        return renderHtml(templateVersion, certificate, true);
+    }
+
+    @Override
+    public String renderHtml(TemplateVersion templateVersion, Certificate certificate, boolean includeVerificationFooter) {
+        log.debug("Rendering HTML for certificate ID: {}, includeFooter: {}", certificate.getId(), includeVerificationFooter);
 
         try {
             var recipientData = parseRecipientData(certificate.getRecipientData());
@@ -124,7 +134,10 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
                 renderedHtml = injectPageSettings(renderedHtml, templateVersion.getSettings());
             }
 
-            renderedHtml = appendVerificationFooter(renderedHtml, context, certificate);
+            // Conditionally append verification footer with QR code and hash
+            if (includeVerificationFooter) {
+                renderedHtml = appendVerificationFooter(renderedHtml, context, certificate);
+            }
 
             log.debug("HTML rendered successfully for certificate ID: {}", certificate.getId());
             return renderedHtml;
@@ -135,6 +148,74 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
             log.error("Failed to render HTML for certificate ID: {}", certificate.getId(), e);
             throw new PdfGenerationException(
                     "Failed to render HTML for certificate: " + certificate.getId(), e);
+        }
+    }
+
+    @Override
+    public ByteArrayOutputStream convertHtmlToPdf(String html, TemplateVersion templateVersion) {
+        log.debug("Converting HTML to PDF (optimized path)");
+
+        try {
+            var pdfOutputStream = new ByteArrayOutputStream();
+
+            var builder = new PdfRendererBuilder();
+            builder.withHtmlContent(html, null);
+            builder.toStream(pdfOutputStream);
+
+            // Apply template version settings to PDF builder
+            applyPdfSettings(builder, templateVersion);
+
+            builder.useFastMode();
+            builder.run();
+
+            log.debug("PDF converted successfully, size: {} bytes", pdfOutputStream.size());
+            return pdfOutputStream;
+        } catch (Exception e) {
+            log.error("Failed to convert HTML to PDF", e);
+            throw new PdfGenerationException("Failed to convert HTML to PDF", e);
+        }
+    }
+
+    @Override
+    public String appendVerificationFooterToHtml(String html, Certificate certificate) {
+        log.debug("Appending verification footer to HTML for certificate: {}", certificate.getId());
+
+        try {
+            // Get verification data from database
+            var certificateHashOpt = certificateHashRepository.findByCertificateId(certificate.getId());
+            if (certificateHashOpt.isEmpty()) {
+                log.debug("No hash found for certificate {}, skipping footer", certificate.getId());
+                return html;
+            }
+
+            var certificateHash = certificateHashOpt.get();
+            var hash = certificateHash.getHashValue();
+            var baseUrl = getBaseUrl();
+            var verificationUrl = baseUrl + "/api/certificates/verify/" + hash;
+
+            // Generate QR code
+            String qrCodeDataUri;
+            try {
+                qrCodeDataUri = generateQrCodeDataUri(verificationUrl);
+            } catch (Exception e) {
+                log.warn("Failed to generate QR code, skipping footer: {}", e.getMessage());
+                return html;
+            }
+
+            // Generate footer HTML
+            var footerHtml = generateVerificationFooterHtml(verificationUrl, qrCodeDataUri);
+
+            // Append footer
+            if (html.contains("</body>")) {
+                return html.replace("</body>", footerHtml + "\n</body>");
+            } else if (html.contains("</html>")) {
+                return html.replace("</html>", footerHtml + "\n</html>");
+            } else {
+                return html + "\n" + footerHtml;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to append verification footer, continuing without footer: {}", e.getMessage());
+            return html;
         }
     }
 
@@ -188,8 +269,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         // Add certificate hash and QR code for verification (if hash exists)
         addVerificationDataToContext(context, certificate);
 
-        // Add download URL if certificate has storage path
-        addDownloadUrlToContext(context, certificate);
+        // Note: Download URL is not included in PDF generation to avoid inconsistencies
+        // Download URLs should be generated on-demand via API endpoints
 
         return context;
     }
@@ -248,42 +329,6 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         }
     }
 
-    /**
-     * Add download URL to template context if certificate has storage path.
-     * The download URL is only available if the certificate PDF has been uploaded to storage.
-     */
-    private void addDownloadUrlToContext(Context context, Certificate certificate) {
-        try {
-            if (certificate.getStoragePath() != null && !certificate.getStoragePath().isEmpty()) {
-                try {
-                    // Generate signed download URL (60 minutes expiration)
-                    String downloadUrl = storageService.generateSignedUrl(
-                            storageService.getDefaultBucketName(),
-                            certificate.getStoragePath(),
-                            60
-                    );
-                    context.setVariable("downloadUrl", downloadUrl);
-                    log.debug("Added download URL to template context for certificate {}", certificate.getId());
-                } catch (Exception e) {
-                    log.warn("Failed to generate download URL for certificate {}, continuing without download URL: {}",
-                            certificate.getId(), e.getMessage());
-                    // Continue without download URL - certificate will still be generated
-                    context.setVariable("downloadUrl", "");
-                }
-            } else {
-                // Certificate doesn't have storage path yet (PDF not uploaded)
-                // Leave download URL empty - it will be available after PDF is uploaded
-                context.setVariable("downloadUrl", "");
-                log.debug("Certificate {} does not have storage path yet, download URL not available",
-                        certificate.getId());
-            }
-        } catch (Exception e) {
-            log.warn("Failed to add download URL to context for certificate {}: {}",
-                    certificate.getId(), e.getMessage());
-            // Continue without download URL - certificate will still be generated
-            context.setVariable("downloadUrl", "");
-        }
-    }
 
     /**
      * Get base URL for generating verification URLs.
@@ -312,35 +357,27 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
     private String processTemplate(String htmlTemplate, Context context, UUID certificateId) {
         // Check if template contains Thymeleaf syntax
         boolean hasThymeleafSyntax = htmlTemplate.contains("th:")
-                || htmlTemplate.contains("${")
                 || htmlTemplate.contains("#{")
                 || htmlTemplate.contains("*{");
 
         if (hasThymeleafSyntax) {
-            // Use Thymeleaf to process the template
             try {
-                // Use a unique template name
-                String templateName = "certificate-template-" + certificateId;
+                var templateName = "certificate-template-" + certificateId;
 
-                // Register template content with resolver
                 certificateTemplateResolver.registerTemplate(templateName, htmlTemplate);
 
                 try {
-                    // Process the template
-                    StringWriter writer = new StringWriter();
+                    var writer = new StringWriter();
                     templateEngine.process(templateName, context, writer);
                     return writer.toString();
                 } finally {
-                    // Clean up template from cache
                     certificateTemplateResolver.removeTemplate(templateName);
                 }
             } catch (Exception e) {
                 log.warn("Thymeleaf processing failed, falling back to simple replacement: {}", e.getMessage());
-                // Fall back to simple variable replacement
                 return replaceSimpleVariables(htmlTemplate, context);
             }
         } else {
-            // Use simple variable replacement for non-Thymeleaf templates
             return replaceSimpleVariables(htmlTemplate, context);
         }
     }
@@ -442,12 +479,15 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         }
 
         try {
-            return objectMapper.readValue(
+            Map<String, Object> parsed = objectMapper.readValue(
                     recipientDataJson,
                     objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class)
             );
+            log.debug("Successfully parsed recipient data: {} fields - {}", parsed.size(), parsed.keySet());
+            return parsed;
         } catch (Exception e) {
-            log.warn("Failed to parse recipient data JSON, using empty map: {}", e.getMessage());
+            log.error("CRITICAL: Failed to parse recipient data JSON, using empty map. JSON: {}, Error: {}",
+                    recipientDataJson.substring(0, Math.min(200, recipientDataJson.length())), e.getMessage());
             return new HashMap<>();
         }
     }

@@ -20,10 +20,11 @@ public interface CertificateService {
      * Use for small batches or when immediate response is required.
      *
      * @param certificate The certificate data to generate
-     * @return The generated certificate with status ISSUED
+     * @param isPreview Whether to generate as preview (PENDING status)
+     * @return The generated certificate with status ISSUED (or PENDING if preview)
      * @throws IllegalArgumentException if certificate data is invalid
      */
-    Certificate generateCertificate(Certificate certificate);
+    Certificate generateCertificate(Certificate certificate, boolean isPreview);
 
     /**
      * Generate a certificate asynchronously.
@@ -31,10 +32,11 @@ public interface CertificateService {
      * Use for large batches or when async processing is preferred.
      *
      * @param certificate The certificate data to generate
+     * @param isPreview Whether to generate as preview (PENDING status)
      * @return The certificate with status PENDING or PROCESSING
      * @throws IllegalArgumentException if certificate data is invalid
      */
-    Certificate generateCertificateAsync(Certificate certificate);
+    Certificate generateCertificateAsync(Certificate certificate, boolean isPreview);
 
     /**
      * Generate multiple certificates synchronously.
@@ -277,4 +279,33 @@ public interface CertificateService {
      * @throws IllegalArgumentException if certificate not found or hash is missing
      */
     String getQrCodeVerificationUrl(UUID certificateId);
+
+    /**
+     * Issue a preview certificate.
+     * Promotes a PENDING certificate to ISSUED status and reuses the existing PDF.
+     *
+     * @param certificateId The certificate ID
+     * @return The issued certificate
+     * @throws IllegalArgumentException if certificate not found, not in PENDING status, or has no preview PDF
+     */
+    Certificate issueCertificate(UUID certificateId);
+
+    /**
+     * Find preview certificates that need cleanup.
+     * Returns certificates with PENDING status and preview PDF older than specified minutes.
+     *
+     * @param minutesOld Number of minutes since preview generation
+     * @return List of certificates eligible for cleanup
+     */
+    List<Certificate> findPreviewCertificatesForCleanup(int minutesOld);
+
+    /**
+     * Cleanup old preview PDFs.
+     * Deletes preview PDFs from storage for certificates that have been in PENDING status
+     * for longer than the specified time.
+     *
+     * @param minutesOld Number of minutes since preview generation
+     * @return Number of PDFs cleaned up
+     */
+    int cleanupOldPreviewPdfs(int minutesOld);
 }
