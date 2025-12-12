@@ -108,7 +108,7 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(Arrays.asList(
                 "http://localhost:5050",
                 "http://127.0.0.1:5050",
-                "https://certmanager-c1pqrinfm-eracodes-projects.vercel.app"
+                "https://certmanager-six.vercel.app"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
