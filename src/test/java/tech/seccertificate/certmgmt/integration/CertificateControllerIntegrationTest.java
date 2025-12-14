@@ -65,7 +65,6 @@ class CertificateControllerIntegrationTest extends BaseIntegrationTest {
                 .synchronous(true)
                 .build();
 
-        log.info("Request being sent: {}", request);
 
         // Act & Assert
         // This will fail initially until we have proper template versions

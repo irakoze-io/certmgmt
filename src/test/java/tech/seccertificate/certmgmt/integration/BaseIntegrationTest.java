@@ -242,7 +242,8 @@ public abstract class BaseIntegrationTest {
             var tvrResponse = templateService.createTemplateVersion(template.getId(), tvr);
             log.info("TemplateVersion response: {}", tvrResponse);
 
-            return tvrResponse;
+            // TemplateVersion must be published to be used for a certificate creation
+            return templateService.publishVersion(tvrResponse.getId());
         } catch (Exception e) {
             log.error("An error occurred while creating a template version for template with ID {}: {}",
                     template.getId(), e.getMessage());
