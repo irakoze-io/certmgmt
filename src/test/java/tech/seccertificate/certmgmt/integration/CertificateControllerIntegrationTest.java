@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import tech.seccertificate.certmgmt.dto.certificate.GenerateCertificateRequest;
 import tech.seccertificate.certmgmt.entity.Customer;
+import tech.seccertificate.certmgmt.entity.Template;
+import tech.seccertificate.certmgmt.entity.TemplateVersion;
 
 import java.util.Map;
 import java.util.UUID;
@@ -20,6 +22,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class CertificateControllerIntegrationTest extends BaseIntegrationTest {
 
     private Customer testCustomer;
+    private Template testTemplate;
+    private TemplateVersion testTemplateVersion;
 
     @BeforeEach
     void setUp() {
@@ -32,6 +36,8 @@ class CertificateControllerIntegrationTest extends BaseIntegrationTest {
 
         testCustomer = createTestCustomer("Test Customer", "test.example.com", uniqueCustomerName);
         setTenantContext(testCustomer.getId());
+        testTemplate = createTestTemplate(testCustomer);
+        testTemplateVersion = createTestTemplateVersion(testTemplate);
     }
 
     @AfterEach
@@ -44,8 +50,8 @@ class CertificateControllerIntegrationTest extends BaseIntegrationTest {
     void generateCertificate_ValidRequest_ReturnsCreated() throws Exception {
         // Arrange
         var request = GenerateCertificateRequest.builder()
-                .templateVersionId(UUID.randomUUID())
-                .certificateNumber("CERT-001")
+                .templateVersionId(testTemplateVersion.getId())
+                .issuedBy(UUID.randomUUID())
                 .recipientData(Map.of(
                         "name", "John Doe",
                         "email", "john@example.com"
