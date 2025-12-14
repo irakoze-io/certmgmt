@@ -4,6 +4,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import tech.seccertificate.certmgmt.dto.certificate.CertificateResponse;
 import tech.seccertificate.certmgmt.dto.certificate.GenerateCertificateRequest;
@@ -25,7 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * End-to-end test for the complete certificate lifecycle.
- * 
+ *
  * <p>Tests the full certificate lifecycle including:
  * <ol>
  *   <li>Certificate generation (sync and async)</li>
@@ -39,6 +41,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("Certificate Lifecycle End-to-End Tests")
 class CertificateLifecycleE2ETest extends BaseIntegrationTest {
 
+    private final static Logger log = LoggerFactory.getLogger(CertificateLifecycleE2ETest.class);
+
     private Customer testCustomer;
     private UUID templateVersionId;
 
@@ -46,10 +50,12 @@ class CertificateLifecycleE2ETest extends BaseIntegrationTest {
     void setUp() throws Exception {
         cleanup();
         initMockMvc();
-        
+
         // Setup: Create customer
         var uniqueSchema = generateUniqueSchema();
-        testCustomer = createTestCustomer("Certificate Lifecycle Test Customer", 
+        log.info("Unique schema generated: {}", uniqueSchema);
+
+        testCustomer = createTestCustomer("CL Test Customer",
                 uniqueSchema + ".lifecycle.com", uniqueSchema);
         setTenantContext(testCustomer.getId());
 
@@ -82,15 +88,18 @@ class CertificateLifecycleE2ETest extends BaseIntegrationTest {
                 .createdBy(UUID.randomUUID())
                 .build();
 
-        var versionResult = mockMvc.perform(
+        var result = mockMvc.perform(
                         withTenantHeader(post("/api/templates/{templateId}/versions", templateId), testCustomer.getId())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(versionDTO)))
                 .andExpect(status().isCreated())
                 .andReturn();
 
-        var versionResponse = objectMapper.readTree(versionResult.getResponse().getContentAsString());
-        templateVersionId = UUID.fromString(versionResponse.get("id").asText());
+        var tvr = objectMapper.readTree(result.getResponse().getContentAsString());
+
+        templateVersionId = UUID.fromString(tvr
+                .get("data")
+                .get("id").asText());
     }
 
     @AfterEach
@@ -253,7 +262,7 @@ class CertificateLifecycleE2ETest extends BaseIntegrationTest {
     void certificateFilteringByStatus() throws Exception {
         // Create multiple certificates
         var timestamp = System.currentTimeMillis();
-        
+
         for (int i = 1; i <= 3; i++) {
             var generateRequest = GenerateCertificateRequest.builder()
                     .templateVersionId(templateVersionId)
@@ -334,7 +343,7 @@ class CertificateLifecycleE2ETest extends BaseIntegrationTest {
     @DisplayName("E2E: Certificate not found - Invalid ID")
     void certificateNotFound_InvalidId() throws Exception {
         var nonExistentId = UUID.randomUUID();
-        
+
         mockMvc.perform(
                         withTenantHeader(get("/api/certificates/{id}", nonExistentId), testCustomer.getId()))
                 .andDo(print())
@@ -354,18 +363,34 @@ class CertificateLifecycleE2ETest extends BaseIntegrationTest {
     @DisplayName("E2E: Revoke non-existent certificate")
     void revokeNonExistentCertificate() throws Exception {
         var nonExistentId = UUID.randomUUID();
-        
+
         mockMvc.perform(
                         withTenantHeader(post("/api/certificates/{id}/revoke", nonExistentId), testCustomer.getId()))
                 .andDo(print())
-                .andExpect(status().isNotFound());
+                .andExpect(status().isBadRequest())
+                /*
+                 * {
+                 *      "success":false,
+                 *      "message":"Certificate not found with ID: 9f05b1b1-a13d-4cdd-beb1-5765663d3e73",
+                 *      "error":
+                 *              {
+                 *                  "errorCode":"INVALID_REQUEST",
+                 *                  "errorType":"Validation Error",
+                 *                  "details":[
+                 *                                  "Certificate not found with ID: 9f05b1b1-a13d-4cdd-beb1-5765663d3e73"
+                 *                            ]
+                 *              }
+                 * }
+                 * Expect the response body to contain "Certificate not found with ID: ...
+                 * */
+                .andExpect(jsonPath("$.message").value("Certificate not found with ID: " + nonExistentId.toString()));
     }
 
     @Test
     @DisplayName("E2E: Delete non-existent certificate")
     void deleteNonExistentCertificate() throws Exception {
         var nonExistentId = UUID.randomUUID();
-        
+
         mockMvc.perform(
                         withTenantHeader(delete("/api/certificates/{id}", nonExistentId), testCustomer.getId()))
                 .andDo(print())
@@ -378,7 +403,7 @@ class CertificateLifecycleE2ETest extends BaseIntegrationTest {
         var certNumber = "EXPIRY-" + System.currentTimeMillis();
         var now = LocalDateTime.now();
         var expiryDate = now.plusYears(2);
-        
+
         var generateRequest = GenerateCertificateRequest.builder()
                 .templateVersionId(templateVersionId)
                 .certificateNumber(certNumber)

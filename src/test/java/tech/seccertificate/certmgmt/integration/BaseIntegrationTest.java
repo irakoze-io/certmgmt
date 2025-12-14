@@ -58,6 +58,7 @@ import java.util.UUID;
 public abstract class BaseIntegrationTest {
 
     private final static Logger log = LoggerFactory.getLogger(BaseIntegrationTest.class);
+
     /**
      * PostgreSQL Testcontainer instance.
      * Shared across all tests in the same JVM for performance (container reuse).
