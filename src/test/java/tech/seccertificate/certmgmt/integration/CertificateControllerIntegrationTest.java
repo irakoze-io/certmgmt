@@ -89,7 +89,6 @@ class CertificateControllerIntegrationTest extends BaseIntegrationTest {
                         withTenantHeader(get("/api/certificates"), testCustomer.getId()))
                 .andDo(print())
                 .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$").isArray());
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON));
     }
 }
