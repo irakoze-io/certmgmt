@@ -15,7 +15,6 @@ import tech.seccertificate.certmgmt.entity.CertificateHash;
 import tech.seccertificate.certmgmt.entity.Customer;
 import tech.seccertificate.certmgmt.entity.Template;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
-import tech.seccertificate.certmgmt.exception.CustomerNotFoundException;
 import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
 import tech.seccertificate.certmgmt.repository.CertificateRepository;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
@@ -141,7 +140,7 @@ class CertificateServiceImplTest {
         doNothing().when(storageService).uploadFile(anyString(), anyString(), any(byte[].class), anyString());
 
         // Act
-        Certificate result = certificateService.generateCertificate(validCertificate);
+        Certificate result = certificateService.generateCertificate(validCertificate, false);
 
         // Assert
         assertThat(result).isNotNull();
@@ -185,7 +184,7 @@ class CertificateServiceImplTest {
         doNothing().when(storageService).uploadFile(anyString(), anyString(), any(byte[].class), anyString());
 
         // Act
-        Certificate result = certificateService.generateCertificate(validCertificate);
+        Certificate result = certificateService.generateCertificate(validCertificate, false);
 
         // Assert
         assertThat(result.getCustomerId()).isEqualTo(1L);
@@ -201,7 +200,7 @@ class CertificateServiceImplTest {
         when(certificateRepository.existsByCertificateNumber("EXISTING-123")).thenReturn(true);
 
         // Act & Assert
-        assertThatThrownBy(() -> certificateService.generateCertificate(validCertificate))
+        assertThatThrownBy(() -> certificateService.generateCertificate(validCertificate, false))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Certificate number is already in use");
     }
@@ -215,7 +214,7 @@ class CertificateServiceImplTest {
         when(templateService.findVersionById(templateVersionId)).thenReturn(Optional.of(publishedTemplateVersion));
 
         // Act & Assert
-        assertThatThrownBy(() -> certificateService.generateCertificate(validCertificate))
+        assertThatThrownBy(() -> certificateService.generateCertificate(validCertificate, false))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Recipient data is required");
     }
@@ -239,7 +238,7 @@ class CertificateServiceImplTest {
         when(certificateRepository.findByCustomerId(1L)).thenReturn(List.of(existingCert));
 
         // Act & Assert
-        assertThatThrownBy(() -> certificateService.generateCertificate(validCertificate))
+        assertThatThrownBy(() -> certificateService.generateCertificate(validCertificate, false))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("monthly certificate limit");
     }
@@ -263,7 +262,7 @@ class CertificateServiceImplTest {
         });
 
         // Act
-        Certificate result = certificateService.generateCertificateAsync(validCertificate);
+        Certificate result = certificateService.generateCertificateAsync(validCertificate, false);
 
         // Assert
         assertThat(result).isNotNull();
@@ -391,7 +390,7 @@ class CertificateServiceImplTest {
 
         // Assert
         assertThat(results).hasSize(1);
-        assertThat(results.get(0)).isEqualTo(validCertificate);
+        assertThat(results.getFirst()).isEqualTo(validCertificate);
     }
 
     // ==================== findByStatus Tests ====================
