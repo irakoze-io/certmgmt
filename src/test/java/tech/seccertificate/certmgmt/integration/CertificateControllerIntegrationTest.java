@@ -4,7 +4,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.result.MockMvcResultHandlers;
 import tech.seccertificate.certmgmt.dto.certificate.GenerateCertificateRequest;
 import tech.seccertificate.certmgmt.entity.Customer;
 import tech.seccertificate.certmgmt.entity.Template;
@@ -20,6 +23,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @DisplayName("CertificateController Integration Tests")
 class CertificateControllerIntegrationTest extends BaseIntegrationTest {
+
+    private final static Logger log = LoggerFactory
+            .getLogger(CertificateControllerIntegrationTest.class);
 
     private Customer testCustomer;
     private Template testTemplate;
@@ -59,6 +65,8 @@ class CertificateControllerIntegrationTest extends BaseIntegrationTest {
                 .synchronous(true)
                 .build();
 
+        log.info("Request being sent: {}", request);
+
         // Act & Assert
         // This will fail initially until we have proper template versions
         // For now, we expect either 400/404 (bad request/not found) or 201 (created)
@@ -71,7 +79,7 @@ class CertificateControllerIntegrationTest extends BaseIntegrationTest {
 
         // Accept either success or client error (template version may not exist)
         int status = result.getResponse().getStatus();
-        assertThat(status).isBetween(200, 499); // Accept any 2xx or 4xx status
+        assertThat(status).isEqualTo(201);
     }
 
     @Test
