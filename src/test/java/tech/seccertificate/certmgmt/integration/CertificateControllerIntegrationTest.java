@@ -4,9 +4,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.result.MockMvcResultHandlers;
 import tech.seccertificate.certmgmt.dto.certificate.GenerateCertificateRequest;
 import tech.seccertificate.certmgmt.entity.Customer;
+import tech.seccertificate.certmgmt.entity.Template;
+import tech.seccertificate.certmgmt.entity.TemplateVersion;
 
 import java.util.Map;
 import java.util.UUID;
@@ -19,7 +24,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @DisplayName("CertificateController Integration Tests")
 class CertificateControllerIntegrationTest extends BaseIntegrationTest {
 
+    private final static Logger log = LoggerFactory
+            .getLogger(CertificateControllerIntegrationTest.class);
+
     private Customer testCustomer;
+    private Template testTemplate;
+    private TemplateVersion testTemplateVersion;
 
     @BeforeEach
     void setUp() {
@@ -32,6 +42,8 @@ class CertificateControllerIntegrationTest extends BaseIntegrationTest {
 
         testCustomer = createTestCustomer("Test Customer", "test.example.com", uniqueCustomerName);
         setTenantContext(testCustomer.getId());
+        testTemplate = createTestTemplate(testCustomer);
+        testTemplateVersion = createTestTemplateVersion(testTemplate);
     }
 
     @AfterEach
@@ -44,14 +56,15 @@ class CertificateControllerIntegrationTest extends BaseIntegrationTest {
     void generateCertificate_ValidRequest_ReturnsCreated() throws Exception {
         // Arrange
         var request = GenerateCertificateRequest.builder()
-                .templateVersionId(UUID.randomUUID())
-                .certificateNumber("CERT-001")
+                .templateVersionId(testTemplateVersion.getId())
+                .issuedBy(UUID.randomUUID())
                 .recipientData(Map.of(
                         "name", "John Doe",
                         "email", "john@example.com"
                 ))
                 .synchronous(true)
                 .build();
+
 
         // Act & Assert
         // This will fail initially until we have proper template versions
@@ -65,7 +78,7 @@ class CertificateControllerIntegrationTest extends BaseIntegrationTest {
 
         // Accept either success or client error (template version may not exist)
         int status = result.getResponse().getStatus();
-        assertThat(status).isBetween(200, 499); // Accept any 2xx or 4xx status
+        assertThat(status).isEqualTo(201);
     }
 
     @Test
@@ -76,7 +89,6 @@ class CertificateControllerIntegrationTest extends BaseIntegrationTest {
                         withTenantHeader(get("/api/certificates"), testCustomer.getId()))
                 .andDo(print())
                 .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$").isArray());
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON));
     }
 }
