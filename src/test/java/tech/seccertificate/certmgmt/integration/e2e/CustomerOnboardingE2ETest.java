@@ -4,13 +4,22 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 import tech.seccertificate.certmgmt.dto.customer.CreateCustomerRequest;
 import tech.seccertificate.certmgmt.entity.Customer;
+import tech.seccertificate.certmgmt.entity.User;
 import tech.seccertificate.certmgmt.integration.BaseIntegrationTest;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -21,7 +30,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * End-to-end test for the complete customer onboarding workflow.
- * 
+ *
  * <p>Tests the full customer lifecycle:
  * <ol>
  *   <li>Customer registration/onboarding</li>
@@ -34,6 +43,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @DisplayName("Customer Onboarding End-to-End Tests")
 class CustomerOnboardingE2ETest extends BaseIntegrationTest {
+
+    private final static Logger log = LoggerFactory.getLogger(CustomerOnboardingE2ETest.class);
 
     @Autowired
     private CustomerRepository customerRepository;
@@ -51,11 +62,12 @@ class CustomerOnboardingE2ETest extends BaseIntegrationTest {
 
     @Test
     @DisplayName("E2E: Complete customer onboarding flow with tenant schema creation")
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void completeCustomerOnboardingFlow() throws Exception {
         // Step 1: Create a new customer with all required fields
         var uniqueSchema = generateUniqueSchema();
         var uniqueDomain = uniqueSchema + ".example.com";
-        
+
         var createRequest = CreateCustomerRequest.builder()
                 .name("E2E Onboarding Test Corp")
                 .domain(uniqueDomain)
@@ -98,8 +110,46 @@ class CustomerOnboardingE2ETest extends BaseIntegrationTest {
         assertThat(savedCustomer.get().getTenantSchema()).isEqualTo(uniqueSchema);
         assertThat(savedCustomer.get().getStatus()).isEqualTo(Customer.CustomerStatus.ACTIVE);
 
-        // Step 3: Retrieve customer by ID via API
-        mockMvc.perform(get("/api/customers/{id}", customerId))
+        // Step 3: Create an ADMIN user for this tenant and login to obtain JWT (required for secured endpoints)
+        // IMPORTANT: Explicitly set tenant context for the test transaction before touching tenant tables (e.g. users).
+        clearTenantContext();
+        setTenantContext(customerId);
+
+        var adminPassword = UUID.randomUUID().toString()
+                .replaceAll("-", "").substring(0, 12);
+
+        mockMvc.perform(withTenantHeader(post("/auth/users"), customerId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "email", "e2e.admin@email.com",
+                                "password", adminPassword,
+                                "firstName", "E2E",
+                                "lastName", "Admin",
+                                "role", User.UserRole.ADMIN
+                        ))))
+                .andDo(print())
+                .andExpect(status().isCreated());
+
+        var loginResult = mockMvc.perform(withTenantHeader(post("/auth/login"), customerId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "email", "e2e.admin@email.com",
+                                "password", adminPassword
+                        ))))
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andReturn();
+
+        var loginJson = objectMapper.readTree(loginResult.getResponse().getContentAsString());
+        var jwt = loginJson.get("data").get("token").asText();
+        assertThat(jwt).isNotBlank();
+
+        // Step 4: Retrieve customer by ID via API (secured)
+        // Back to public schema operations
+        clearTenantContext();
+        mockMvc.perform(get("/api/customers/{id}", customerId)
+                        .header("Authorization", "Bearer " + jwt))
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -107,12 +157,25 @@ class CustomerOnboardingE2ETest extends BaseIntegrationTest {
                 .andExpect(jsonPath("$.data.name").value("E2E Onboarding Test Corp"))
                 .andExpect(jsonPath("$.data.tenantSchema").value(uniqueSchema));
 
-        // Step 4: Verify customer appears in list
-        mockMvc.perform(get("/api/customers"))
-                .andDo(print())
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").isArray());
+        // Step 5: Verify customer appears in list (requires ADMIN)
+        // NOTE: These integration tests build MockMvc without Spring Security filters,
+        // so we must seed an Authentication into the SecurityContext for @PreAuthorize checks.
+        var adminAuth = new UsernamePasswordAuthenticationToken(
+                "e2e-admin",
+                "N/A",
+                List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
+        );
+        SecurityContextHolder.getContext().setAuthentication(adminAuth);
+        try {
+            mockMvc.perform(get("/api/customers")
+                            .header("Authorization", "Bearer " + jwt))
+                    .andDo(print())
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.success").value(true))
+                    .andExpect(jsonPath("$.data").isArray());
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
@@ -121,7 +184,7 @@ class CustomerOnboardingE2ETest extends BaseIntegrationTest {
         // Create customer without specifying tenantSchema - should be auto-generated
         var timestamp = System.currentTimeMillis();
         var uniqueDomain = "autogen" + timestamp + ".example.com";
-        
+
         var createRequest = CreateCustomerRequest.builder()
                 .name("Auto Schema Corp")
                 .domain(uniqueDomain)
@@ -148,6 +211,7 @@ class CustomerOnboardingE2ETest extends BaseIntegrationTest {
 
     @Test
     @DisplayName("E2E: Multiple customer onboarding - Tenant isolation verification")
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     void multipleCustomerOnboardingWithIsolation() throws Exception {
         // Create first customer
         var schema1 = generateUniqueSchema();
@@ -167,8 +231,42 @@ class CustomerOnboardingE2ETest extends BaseIntegrationTest {
 
         var response1 = objectMapper.readTree(result1.getResponse().getContentAsString());
         var customer1Id = response1.get("data").get("id").asLong();
+        clearTenantContext();
+        setTenantContext(customer1Id);
+
+        var user1Password = UUID.randomUUID().toString()
+                .replaceAll("-", "").substring(0, 12);
+
+        mockMvc
+                .perform(withTenantHeader(post("/auth/users"), customer1Id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "email", "test1.user@email.com",
+                                "password", user1Password,
+                                "firstName", "Test1",
+                                "lastName", "User",
+                                "role", User.UserRole.ADMIN
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        // User for Customer 1 Login
+        var user1Login = mockMvc
+                .perform(withTenantHeader(post("/auth/login"), customer1Id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "email", "test1.user@email.com",
+                                "password", user1Password
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andReturn();
+
+        var login1Data = objectMapper.readTree(user1Login.getResponse().getContentAsString());
+        var login1Jwt = login1Data.get("data").get("token").asText();
 
         // Create second customer
+        clearTenantContext(); // customer onboarding happens in public schema
         var schema2 = generateUniqueSchema();
         var customer2Request = CreateCustomerRequest.builder()
                 .name("Company Beta")
@@ -187,24 +285,75 @@ class CustomerOnboardingE2ETest extends BaseIntegrationTest {
         var response2 = objectMapper.readTree(result2.getResponse().getContentAsString());
         var customer2Id = response2.get("data").get("id").asLong();
 
+        clearTenantContext();
+        setTenantContext(customer2Id);
+
+        var user2Password = UUID.randomUUID().toString()
+                .replaceAll("-", "").substring(0, 12);
+
+        mockMvc
+                .perform(withTenantHeader(post("/auth/users"), customer2Id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "email", "test2.user@email.com",
+                                "password", user2Password,
+                                "firstName", "Test2",
+                                "lastName", "User",
+                                "role", User.UserRole.ADMIN
+                        ))))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        // User for Customer 2 Login
+        var user2Login = mockMvc
+                .perform(withTenantHeader(post("/auth/login"), customer2Id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of(
+                                "email", "test2.user@email.com",
+                                "password", user2Password
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andReturn();
+
+        var login2Data = objectMapper.readTree(user2Login.getResponse().getContentAsString());
+        var login2Jwt = login2Data.get("data").get("token").asText();
+
         // Verify both customers exist and are distinct
         assertThat(customer1Id).isNotEqualTo(customer2Id);
 
         // Retrieve and verify each customer independently
-        mockMvc.perform(get("/api/customers/{id}", customer1Id))
+        clearTenantContext(); // customer retrieval is a public schema operation
+        mockMvc.perform(get("/api/customers/{id}", customer1Id)
+                        .header("Authorization",
+                                "Bearer " + login1Jwt))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("Company Alpha"))
                 .andExpect(jsonPath("$.data.tenantSchema").value(schema1));
 
-        mockMvc.perform(get("/api/customers/{id}", customer2Id))
+        mockMvc.perform(get("/api/customers/{id}", customer2Id)
+                .header("Authorization",
+                        "Bearer " + login2Jwt))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("Company Beta"))
                 .andExpect(jsonPath("$.data.tenantSchema").value(schema2));
 
         // Verify customer list contains both
-        mockMvc.perform(get("/api/customers"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(org.hamcrest.Matchers.greaterThanOrEqualTo(2)));
+        var adminAuth = new UsernamePasswordAuthenticationToken(
+                "e2e-admin",
+                "N/A",
+                List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))
+        );
+        SecurityContextHolder.getContext().setAuthentication(adminAuth);
+        try {
+            mockMvc.perform(get("/api/customers")
+                            .header("Authorization", "Bearer " + login1Jwt))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.length()")
+                            .value(org.hamcrest.Matchers.greaterThanOrEqualTo(2)));
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 
     @Test
@@ -254,7 +403,7 @@ class CustomerOnboardingE2ETest extends BaseIntegrationTest {
     @DisplayName("E2E: Customer onboarding validation - Max users limits")
     void customerOnboardingValidation_MaxUsersLimits() throws Exception {
         var uniqueSchema = generateUniqueSchema();
-        
+
         // Test with maxUsers exceeding limit (max is 10000)
         var invalidRequest = CreateCustomerRequest.builder()
                 .name("Test Company")
@@ -282,7 +431,7 @@ class CustomerOnboardingE2ETest extends BaseIntegrationTest {
     @DisplayName("E2E: Customer onboarding with default values")
     void customerOnboardingWithDefaults() throws Exception {
         var uniqueSchema = generateUniqueSchema();
-        
+
         // Create customer with only required fields
         var createRequest = CreateCustomerRequest.builder()
                 .name("Minimal Config Corp")

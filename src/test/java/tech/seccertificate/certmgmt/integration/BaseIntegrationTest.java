@@ -22,9 +22,11 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 import tech.seccertificate.certmgmt.config.TenantContext;
+import tech.seccertificate.certmgmt.config.TenantResolutionFilter;
 import tech.seccertificate.certmgmt.entity.Customer;
 import tech.seccertificate.certmgmt.entity.Template;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
+import tech.seccertificate.certmgmt.entity.User;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
 import tech.seccertificate.certmgmt.service.CustomerService;
 import tech.seccertificate.certmgmt.service.StorageService;
@@ -122,6 +124,9 @@ public abstract class BaseIntegrationTest {
     protected TenantService tenantService;
 
     @Autowired
+    protected TenantResolutionFilter tenantResolutionFilter;
+
+    @Autowired
     protected StorageService storageService;
 
     @Autowired
@@ -141,7 +146,10 @@ public abstract class BaseIntegrationTest {
      */
     protected void initMockMvc() {
         if (mockMvc == null) {
-            mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+            mockMvc = MockMvcBuilders
+                    .webAppContextSetup(webApplicationContext)
+                    .addFilters(tenantResolutionFilter)
+                    .build();
         }
     }
 
@@ -174,7 +182,7 @@ public abstract class BaseIntegrationTest {
     /**
      * Directly sets the search_path on the current connection.
      */
-    private void setSearchPath(String schemaName) {
+    protected void setSearchPath(String schemaName) {
         if (schemaName == null || schemaName.isEmpty()) {
             schemaName = "public";
         }
