@@ -137,46 +137,46 @@ class CertificateErrorHandlingIntegrationTest {
         tenantService.clearTenantContext();
     }
 
-//    @Test
-//    @Order(1)
-//    @DisplayName("Should mark certificate as FAILED when template version not found")
-//    void shouldMarkAsFailedWhenTemplateVersionNotFound() {
-//        // Given: A certificate with non-existent template version
-//        var certificate = Certificate.builder()
-//                .customerId(testCustomer.getId())
-//                .templateVersionId(UUID.randomUUID()) // Non-existent
-//                .certificateNumber(generateUniqueCertNumber())
-//                .recipientData("{\"name\":\"Test User\",\"email\":\"test@example.com\"}")
-//                .status(Certificate.CertificateStatus.PENDING)
-//                .build();
-//
-//        var savedCertificate = certificateRepository.save(certificate);
-//
-//        // When: Send message to worker
-//        var message = CertificateGenerationMessage.builder()
-//                .certificateId(savedCertificate.getId())
-//                .tenantSchema(testCustomer.getTenantSchema())
-//                .build();
-//
-//        rabbitTemplate.convertAndSend(
-//                "certificate.exchange",
-//                "certificate.generate",
-//                message
-//        );
-//
-//        // Then: Certificate should be marked as FAILED
-//        await()
-//                .atMost(10, TimeUnit.SECONDS)
-//                .pollInterval(500, TimeUnit.MILLISECONDS)
-//                .untilAsserted(() -> {
-//                    var updated = certificateRepository.findById(savedCertificate.getId()).orElseThrow();
-//                    log.info("Certificate status: {}, metadata: {}", updated.getStatus(), updated.getMetadata());
-//                    assertThat(updated.getStatus()).isEqualTo(Certificate.CertificateStatus.FAILED);
-//                    assertThat(updated.getMetadata()).contains("Template version not found");
-//                });
-//
-//        log.info("Successfully handled template version not found error");
-//    }
+    @Test
+    @Order(1)
+    @DisplayName("Should mark certificate as FAILED when template version not found")
+    void shouldMarkAsFailedWhenTemplateVersionNotFound() {
+        // Given: A certificate with non-existent template version
+        var certificate = Certificate.builder()
+                .customerId(testCustomer.getId())
+                .templateVersionId(UUID.randomUUID()) // Non-existent
+                .certificateNumber(generateUniqueCertNumber())
+                .recipientData("{\"name\":\"Test User\",\"email\":\"test@example.com\"}")
+                .status(Certificate.CertificateStatus.PENDING)
+                .build();
+
+        var savedCertificate = certificateRepository.save(certificate);
+
+        // When: Send message to worker
+        var message = CertificateGenerationMessage.builder()
+                .certificateId(savedCertificate.getId())
+                .tenantSchema(testCustomer.getTenantSchema())
+                .build();
+
+        rabbitTemplate.convertAndSend(
+                "certificate.exchange",
+                "certificate.generate",
+                message
+        );
+
+        // Then: Certificate should be marked as FAILED
+        await()
+                .atMost(10, TimeUnit.SECONDS)
+                .pollInterval(500, TimeUnit.MILLISECONDS)
+                .untilAsserted(() -> {
+                    var updated = certificateRepository.findById(savedCertificate.getId()).orElseThrow();
+                    log.info("Certificate status: {}, metadata: {}", updated.getStatus(), updated.getMetadata());
+                    assertThat(updated.getStatus()).isEqualTo(Certificate.CertificateStatus.FAILED);
+                    assertThat(updated.getMetadata()).contains("Template version not found");
+                });
+
+        log.info("Successfully handled template version not found error");
+    }
 
     @Test
     @Order(2)
@@ -210,51 +210,51 @@ class CertificateErrorHandlingIntegrationTest {
         log.info("Successfully handled certificate not found error");
     }
 
-//    @Test
-//    @Order(3)
-//    @DisplayName("Should retry FAILED certificate and succeed")
-//    void shouldRetryFailedCertificateAndSucceed() {
-//        // Given: A certificate that was previously marked as FAILED
-//        var certificate = Certificate.builder()
-//                .customerId(testCustomer.getId())
-//                .templateVersionId(testTemplateVersion.getId())
-//                .certificateNumber(generateUniqueCertNumber())
-//                .recipientData("{\"name\":\"Retry User\",\"email\":\"retry@example.com\"}")
-//                .status(Certificate.CertificateStatus.FAILED)
-//                .metadata("{\"error\":\"Previous attempt failed\"}")
-//                .build();
-//
-//        var savedCertificate = certificateRepository.save(certificate);
-//        var certId = savedCertificate.getId();
-//
-//        log.info("Created FAILED certificate for retry: {}", certId);
-//
-//        // When: Send retry message
-//        var message = CertificateGenerationMessage.builder()
-//                .certificateId(certId)
-//                .tenantSchema(testCustomer.getTenantSchema())
-//                .build();
-//
-//        rabbitTemplate.convertAndSend(
-//                "certificate.exchange",
-//                "certificate.generate",
-//                message
-//        );
-//
-//        // Then: Certificate should transition to ISSUED
-//        await()
-//                .atMost(15, TimeUnit.SECONDS)
-//                .pollInterval(1, TimeUnit.SECONDS)
-//                .untilAsserted(() -> {
-//                    var updated = certificateRepository.findById(certId).orElseThrow();
-//                    log.info("Retry status: {}", updated.getStatus());
-//                    assertThat(updated.getStatus()).isEqualTo(Certificate.CertificateStatus.ISSUED);
-//                    assertThat(updated.getStoragePath()).isNotNull();
-//                    assertThat(updated.getSignedHash()).isNotNull();
-//                });
-//
-//        log.info("Successfully retried FAILED certificate");
-//    }
+    @Test
+    @Order(3)
+    @DisplayName("Should retry FAILED certificate and succeed")
+    void shouldRetryFailedCertificateAndSucceed() {
+        // Given: A certificate that was previously marked as FAILED
+        var certificate = Certificate.builder()
+                .customerId(testCustomer.getId())
+                .templateVersionId(testTemplateVersion.getId())
+                .certificateNumber(generateUniqueCertNumber())
+                .recipientData("{\"name\":\"Retry User\",\"email\":\"retry@example.com\"}")
+                .status(Certificate.CertificateStatus.FAILED)
+                .metadata("{\"error\":\"Previous attempt failed\"}")
+                .build();
+
+        var savedCertificate = certificateRepository.save(certificate);
+        var certId = savedCertificate.getId();
+
+        log.info("Created FAILED certificate for retry: {}", certId);
+
+        // When: Send retry message
+        var message = CertificateGenerationMessage.builder()
+                .certificateId(certId)
+                .tenantSchema(testCustomer.getTenantSchema())
+                .build();
+
+        rabbitTemplate.convertAndSend(
+                "certificate.exchange",
+                "certificate.generate",
+                message
+        );
+
+        // Then: Certificate should transition to ISSUED
+        await()
+                .atMost(15, TimeUnit.SECONDS)
+                .pollInterval(1, TimeUnit.SECONDS)
+                .untilAsserted(() -> {
+                    var updated = certificateRepository.findById(certId).orElseThrow();
+                    log.info("Retry status: {}", updated.getStatus());
+                    assertThat(updated.getStatus()).isEqualTo(Certificate.CertificateStatus.ISSUED);
+                    assertThat(updated.getStoragePath()).isNotNull();
+                    assertThat(updated.getSignedHash()).isNotNull();
+                });
+
+        log.info("Successfully retried FAILED certificate");
+    }
 
     @Test
     @Order(4)
@@ -295,142 +295,142 @@ class CertificateErrorHandlingIntegrationTest {
         log.info("Successfully handled invalid tenant schema");
     }
 
-//    @Test
-//    @Order(5)
-//    @DisplayName("Should preserve error metadata when marking as FAILED")
-//    void shouldPreserveErrorMetadata() {
-//        // Given: A certificate for async generation with invalid template version
-//        var certificate = Certificate.builder()
-//                .customerId(testCustomer.getId())
-//                .templateVersionId(UUID.randomUUID()) // Non-existent
-//                .certificateNumber(generateUniqueCertNumber())
-//                .recipientData("{\"name\":\"Test User\",\"email\":\"test@example.com\"}")
-//                .status(Certificate.CertificateStatus.PENDING)
-//                .metadata("{\"customField\":\"customValue\"}")
-//                .build();
-//
-//        var savedCertificate = certificateRepository.save(certificate);
-//
-//        // When: Send message to worker
-//        var message = CertificateGenerationMessage.builder()
-//                .certificateId(savedCertificate.getId())
-//                .tenantSchema(testCustomer.getTenantSchema())
-//                .build();
-//
-//        rabbitTemplate.convertAndSend(
-//                "certificate.exchange",
-//                "certificate.generate",
-//                message
-//        );
-//
-//        // Then: Error should be added to metadata
-//        await()
-//                .atMost(10, TimeUnit.SECONDS)
-//                .pollInterval(500, TimeUnit.MILLISECONDS)
-//                .untilAsserted(() -> {
-//                    var updated = certificateRepository.findById(savedCertificate.getId()).orElseThrow();
-//                    assertThat(updated.getStatus()).isEqualTo(Certificate.CertificateStatus.FAILED);
-//                    assertThat(updated.getMetadata()).isNotNull();
-//                    assertThat(updated.getMetadata()).contains("error");
-//                });
-//
-//        log.info("Successfully preserved error metadata");
-//    }
+    @Test
+    @Order(5)
+    @DisplayName("Should preserve error metadata when marking as FAILED")
+    void shouldPreserveErrorMetadata() {
+        // Given: A certificate for async generation with invalid template version
+        var certificate = Certificate.builder()
+                .customerId(testCustomer.getId())
+                .templateVersionId(UUID.randomUUID()) // Non-existent
+                .certificateNumber(generateUniqueCertNumber())
+                .recipientData("{\"name\":\"Test User\",\"email\":\"test@example.com\"}")
+                .status(Certificate.CertificateStatus.PENDING)
+                .metadata("{\"customField\":\"customValue\"}")
+                .build();
 
-//    @Test
-//    @Order(6)
-//    @DisplayName("Should handle multiple retry attempts")
-//    void shouldHandleMultipleRetryAttempts() {
-//        // Given: A certificate that keeps failing (using non-existent template)
-//        var certificate = Certificate.builder()
-//                .customerId(testCustomer.getId())
-//                .templateVersionId(UUID.randomUUID()) // Non-existent - will always fail
-//                .certificateNumber(generateUniqueCertNumber())
-//                .recipientData("{\"name\":\"Test User\",\"email\":\"test@example.com\"}")
-//                .status(Certificate.CertificateStatus.PENDING)
-//                .build();
-//
-//        var savedCertificate = certificateRepository.save(certificate);
-//        var certId = savedCertificate.getId();
-//
-//        // When: Send multiple retry messages
-//        for (int i = 0; i < 3; i++) {
-//            var message = CertificateGenerationMessage.builder()
-//                    .certificateId(certId)
-//                    .tenantSchema(testCustomer.getTenantSchema())
-//                    .build();
-//
-//            rabbitTemplate.convertAndSend(
-//                    "certificate.exchange",
-//                    "certificate.generate",
-//                    message
-//            );
-//
-//            // Wait a bit between retries
-//            try {
-//                Thread.sleep(2000);
-//            } catch (InterruptedException e) {
-//                Thread.currentThread().interrupt();
-//            }
-//        }
-//
-//        // Then: Certificate should remain FAILED after all attempts
-//        await()
-//                .atMost(15, TimeUnit.SECONDS)
-//                .pollDelay(5, TimeUnit.SECONDS)
-//                .untilAsserted(() -> {
-//                    var updated = certificateRepository.findById(certId).orElseThrow();
-//                    assertThat(updated.getStatus()).isEqualTo(Certificate.CertificateStatus.FAILED);
-//                });
-//
-//        log.info("Successfully handled multiple retry attempts");
-//    }
-//
-//    @Test
-//    @Order(7)
-//    @DisplayName("Should handle concurrent error scenarios")
-//    void shouldHandleConcurrentErrors() {
-//        // Given: Multiple certificates with errors
-//        var cert1 = createFailingCertificate();
-//        var cert2 = createFailingCertificate();
-//        var cert3 = createFailingCertificate();
-//
-//        // When: Send all messages concurrently
-//        var message1 = CertificateGenerationMessage.builder()
-//                .certificateId(cert1.getId())
-//                .tenantSchema(testCustomer.getTenantSchema())
-//                .build();
-//
-//        var message2 = CertificateGenerationMessage.builder()
-//                .certificateId(cert2.getId())
-//                .tenantSchema(testCustomer.getTenantSchema())
-//                .build();
-//
-//        var message3 = CertificateGenerationMessage.builder()
-//                .certificateId(cert3.getId())
-//                .tenantSchema(testCustomer.getTenantSchema())
-//                .build();
-//
-//        rabbitTemplate.convertAndSend("certificate.exchange", "certificate.generate", message1);
-//        rabbitTemplate.convertAndSend("certificate.exchange", "certificate.generate", message2);
-//        rabbitTemplate.convertAndSend("certificate.exchange", "certificate.generate", message3);
-//
-//        // Then: All should be marked as FAILED
-//        await()
-//                .atMost(15, TimeUnit.SECONDS)
-//                .pollInterval(1, TimeUnit.SECONDS)
-//                .untilAsserted(() -> {
-//                    var updated1 = certificateRepository.findById(cert1.getId()).orElseThrow();
-//                    var updated2 = certificateRepository.findById(cert2.getId()).orElseThrow();
-//                    var updated3 = certificateRepository.findById(cert3.getId()).orElseThrow();
-//
-//                    assertThat(updated1.getStatus()).isEqualTo(Certificate.CertificateStatus.FAILED);
-//                    assertThat(updated2.getStatus()).isEqualTo(Certificate.CertificateStatus.FAILED);
-//                    assertThat(updated3.getStatus()).isEqualTo(Certificate.CertificateStatus.FAILED);
-//                });
-//
-//        log.info("Successfully handled concurrent error scenarios");
-//    }
+        var savedCertificate = certificateRepository.save(certificate);
+
+        // When: Send message to worker
+        var message = CertificateGenerationMessage.builder()
+                .certificateId(savedCertificate.getId())
+                .tenantSchema(testCustomer.getTenantSchema())
+                .build();
+
+        rabbitTemplate.convertAndSend(
+                "certificate.exchange",
+                "certificate.generate",
+                message
+        );
+
+        // Then: Error should be added to metadata
+        await()
+                .atMost(10, TimeUnit.SECONDS)
+                .pollInterval(500, TimeUnit.MILLISECONDS)
+                .untilAsserted(() -> {
+                    var updated = certificateRepository.findById(savedCertificate.getId()).orElseThrow();
+                    assertThat(updated.getStatus()).isEqualTo(Certificate.CertificateStatus.FAILED);
+                    assertThat(updated.getMetadata()).isNotNull();
+                    assertThat(updated.getMetadata()).contains("error");
+                });
+
+        log.info("Successfully preserved error metadata");
+    }
+
+    @Test
+    @Order(6)
+    @DisplayName("Should handle multiple retry attempts")
+    void shouldHandleMultipleRetryAttempts() {
+        // Given: A certificate that keeps failing (using non-existent template)
+        var certificate = Certificate.builder()
+                .customerId(testCustomer.getId())
+                .templateVersionId(UUID.randomUUID()) // Non-existent - will always fail
+                .certificateNumber(generateUniqueCertNumber())
+                .recipientData("{\"name\":\"Test User\",\"email\":\"test@example.com\"}")
+                .status(Certificate.CertificateStatus.PENDING)
+                .build();
+
+        var savedCertificate = certificateRepository.save(certificate);
+        var certId = savedCertificate.getId();
+
+        // When: Send multiple retry messages
+        for (int i = 0; i < 3; i++) {
+            var message = CertificateGenerationMessage.builder()
+                    .certificateId(certId)
+                    .tenantSchema(testCustomer.getTenantSchema())
+                    .build();
+
+            rabbitTemplate.convertAndSend(
+                    "certificate.exchange",
+                    "certificate.generate",
+                    message
+            );
+
+            // Wait a bit between retries
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        // Then: Certificate should remain FAILED after all attempts
+        await()
+                .atMost(15, TimeUnit.SECONDS)
+                .pollDelay(5, TimeUnit.SECONDS)
+                .untilAsserted(() -> {
+                    var updated = certificateRepository.findById(certId).orElseThrow();
+                    assertThat(updated.getStatus()).isEqualTo(Certificate.CertificateStatus.FAILED);
+                });
+
+        log.info("Successfully handled multiple retry attempts");
+    }
+
+    @Test
+    @Order(7)
+    @DisplayName("Should handle concurrent error scenarios")
+    void shouldHandleConcurrentErrors() {
+        // Given: Multiple certificates with errors
+        var cert1 = createFailingCertificate();
+        var cert2 = createFailingCertificate();
+        var cert3 = createFailingCertificate();
+
+        // When: Send all messages concurrently
+        var message1 = CertificateGenerationMessage.builder()
+                .certificateId(cert1.getId())
+                .tenantSchema(testCustomer.getTenantSchema())
+                .build();
+
+        var message2 = CertificateGenerationMessage.builder()
+                .certificateId(cert2.getId())
+                .tenantSchema(testCustomer.getTenantSchema())
+                .build();
+
+        var message3 = CertificateGenerationMessage.builder()
+                .certificateId(cert3.getId())
+                .tenantSchema(testCustomer.getTenantSchema())
+                .build();
+
+        rabbitTemplate.convertAndSend("certificate.exchange", "certificate.generate", message1);
+        rabbitTemplate.convertAndSend("certificate.exchange", "certificate.generate", message2);
+        rabbitTemplate.convertAndSend("certificate.exchange", "certificate.generate", message3);
+
+        // Then: All should be marked as FAILED
+        await()
+                .atMost(15, TimeUnit.SECONDS)
+                .pollInterval(1, TimeUnit.SECONDS)
+                .untilAsserted(() -> {
+                    var updated1 = certificateRepository.findById(cert1.getId()).orElseThrow();
+                    var updated2 = certificateRepository.findById(cert2.getId()).orElseThrow();
+                    var updated3 = certificateRepository.findById(cert3.getId()).orElseThrow();
+
+                    assertThat(updated1.getStatus()).isEqualTo(Certificate.CertificateStatus.FAILED);
+                    assertThat(updated2.getStatus()).isEqualTo(Certificate.CertificateStatus.FAILED);
+                    assertThat(updated3.getStatus()).isEqualTo(Certificate.CertificateStatus.FAILED);
+                });
+
+        log.info("Successfully handled concurrent error scenarios");
+    }
 
     // Helper methods
 
