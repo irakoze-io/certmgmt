@@ -1,8 +1,13 @@
 package tech.seccertificate.certmgmt.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.BeforeEach;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -17,11 +22,22 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 import tech.seccertificate.certmgmt.config.TenantContext;
+import tech.seccertificate.certmgmt.config.TenantResolutionFilter;
 import tech.seccertificate.certmgmt.entity.Customer;
+import tech.seccertificate.certmgmt.entity.Template;
+import tech.seccertificate.certmgmt.entity.TemplateVersion;
+import tech.seccertificate.certmgmt.entity.User;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
 import tech.seccertificate.certmgmt.service.CustomerService;
 import tech.seccertificate.certmgmt.service.StorageService;
+import tech.seccertificate.certmgmt.service.TemplateService;
 import tech.seccertificate.certmgmt.service.TenantService;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.UUID;
+
 
 /**
  * Base class for integration tests.
@@ -37,11 +53,13 @@ import tech.seccertificate.certmgmt.service.TenantService;
  *   <li>S3/MinIO storage for certificate PDFs</li>
  * </ul>
  */
-@SpringBootTest
-@ActiveProfiles("test")
 @Transactional
 @Testcontainers
+@SpringBootTest
+@ActiveProfiles("test")
 public abstract class BaseIntegrationTest {
+
+    private final static Logger log = LoggerFactory.getLogger(BaseIntegrationTest.class);
 
     /**
      * PostgreSQL Testcontainer instance.
@@ -77,7 +95,7 @@ public abstract class BaseIntegrationTest {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
-        
+
         // MinIO/S3 storage properties
         registry.add("storage.minio.endpoint", minio::getS3URL);
         registry.add("storage.minio.access-key", minio::getUserName);
@@ -100,25 +118,47 @@ public abstract class BaseIntegrationTest {
     protected CustomerRepository customerRepository;
 
     @Autowired
+    protected TemplateService templateService;
+
+    @Autowired
     protected TenantService tenantService;
 
     @Autowired
+    protected TenantResolutionFilter tenantResolutionFilter;
+
+    @Autowired
     protected StorageService storageService;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @BeforeEach
+    void setup() {
+        initMockMvc();
+        clearTenantContext(); // Ensure we start with a clean slate
+    }
 
     /**
      * Initialize MockMvc before each test.
      */
     protected void initMockMvc() {
         if (mockMvc == null) {
-            mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+            mockMvc = MockMvcBuilders
+                    .webAppContextSetup(webApplicationContext)
+                    .addFilters(tenantResolutionFilter)
+                    .build();
         }
     }
 
     /**
      * Create a test customer and return it.
-     * The customer will have a tenant schema created.
+     * The customer will have a tenant schema created, and the tenant context will be set.
      */
     protected Customer createTestCustomer(String name, String domain, String tenantSchema) {
+        // Step 1: Create the customer record in the public schema.
         var customer = Customer.builder()
                 .name(name)
                 .domain(domain)
@@ -127,29 +167,123 @@ public abstract class BaseIntegrationTest {
                 .maxCertificatesPerMonth(1000)
                 .status(Customer.CustomerStatus.ACTIVE)
                 .build();
+        var createdCustomer = customerService.onboardCustomer(customer);
 
-        return customerService.onboardCustomer(customer);
+        // Step 2: Manually set the search_path for the current transaction.
+        // This is the crucial step that makes the subsequent operations tenant-aware.
+        setSearchPath(tenantSchema);
+
+        // Step 3: Set the TenantContext for any subsequent logic that relies on it.
+        TenantContext.setTenantSchema(tenantSchema);
+
+        return createdCustomer;
     }
 
     /**
-     * Set tenant context for the current thread.
+     * Directly sets the search_path on the current connection.
+     */
+    protected void setSearchPath(String schemaName) {
+        if (schemaName == null || schemaName.isEmpty()) {
+            schemaName = "public";
+        }
+        String sanitizedSchema = schemaName.replaceAll("[^a-zA-Z0-9_]", "");
+        jdbcTemplate.execute("SET search_path TO " + sanitizedSchema + ", public");
+        log.info("JDBC search_path set to: {}", sanitizedSchema);
+    }
+
+
+    /**
+     * Create a test template for earlier created customer
+     * The template has to be linked to a customer.
+     */
+    protected Template createTestTemplate(Customer customer) {
+        log.info("Creating test template for customer {}", customer);
+
+        var digitsOnlyUUID = UUID.randomUUID().toString()
+                .replaceAll("-", "")
+                .replaceAll("[^0-9]", "");
+        log.info("Getting digits only code {}", digitsOnlyUUID);
+
+        var template = templateService.createTemplate(Template.builder()
+                .customerId(customer.getId())
+                .code(digitsOnlyUUID)
+                .name("Test Template" + customer.getId())
+                .description("Test_Template_" + digitsOnlyUUID)
+                .currentVersion(new Random().nextInt(10))
+                .build());
+
+        log.info("Created template with details: {}", template);
+        return template;
+    }
+
+    /**
+     * Creates a test template version
+     * The template version has to be linked to an already existing Template
+     */
+    protected TemplateVersion createTestTemplateVersion(Template template) {
+        log.info("Creating a template version for template with details: {}", template);
+
+        var fieldSchemaMap = Map.of("fields", List.of(
+                Map.of("name", "name",
+                        "type", "text",
+                        "required", true,
+                        "label", "Recipient Name"
+                ),
+                Map.of("name", "email",
+                        "type", "email",
+                        "required", true,
+                        "label", "Email Address")
+        ));
+
+        var fieldSchema = "";
+        try {
+            fieldSchema = objectMapper.writeValueAsString(fieldSchemaMap);
+        } catch (Exception e){}
+
+        var tvr = TemplateVersion.builder()
+                .template(template)
+                .createdBy(UUID.randomUUID())
+                .fieldSchema(fieldSchema)
+                .htmlContent("<html><h1>Test</h1></html>")
+                .build();
+
+        try {
+            var tvrResponse = templateService.createTemplateVersion(template.getId(), tvr);
+            log.info("TemplateVersion response: {}", tvrResponse);
+
+            // TemplateVersion must be published to be used for a certificate creation
+            return templateService.publishVersion(tvrResponse.getId());
+        } catch (Exception e) {
+            log.error("An error occurred while creating a template version for template with ID {}: {}",
+                    template.getId(), e.getMessage());
+            return TemplateVersion.builder().build();
+        }
+    }
+
+    /**
+     * Set tenant context for the current thread and updates the current transaction's search_path.
      */
     protected void setTenantContext(Long customerId) {
-        tenantService.setTenantContext(customerId);
+        customerRepository.findById(customerId).ifPresent(customer -> {
+            setSearchPath(customer.getTenantSchema());
+            TenantContext.setTenantSchema(customer.getTenantSchema());
+        });
     }
 
     /**
-     * Set tenant context using schema name.
+     * Set tenant context using schema name and updates the current transaction's search_path.
      */
     protected void setTenantContext(String schemaName) {
-        tenantService.setTenantContext(schemaName);
+        setSearchPath(schemaName);
+        TenantContext.setTenantSchema(schemaName);
     }
 
     /**
-     * Clear tenant context.
+     * Clear tenant context and resets the search_path to public.
      */
     protected void clearTenantContext() {
-        tenantService.clearTenantContext();
+        TenantContext.clear();
+        setSearchPath("public");
     }
 
     /**
