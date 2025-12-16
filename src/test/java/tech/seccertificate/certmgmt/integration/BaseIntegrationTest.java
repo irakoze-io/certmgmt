@@ -272,6 +272,7 @@ public abstract class BaseIntegrationTest {
 
     /**
      * Set tenant context using schema name and updates the current transaction's search_path.
+     * This method is now safe to call both inside and outside a transaction.
      */
     protected void setTenantContext(String schemaName) {
         setSearchPath(schemaName);
