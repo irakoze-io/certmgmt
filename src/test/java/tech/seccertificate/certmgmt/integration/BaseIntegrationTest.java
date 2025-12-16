@@ -276,6 +276,31 @@ public abstract class BaseIntegrationTest {
     protected void setTenantContext(String schemaName) {
         setSearchPath(schemaName);
         TenantContext.setTenantSchema(schemaName);
+
+        var sanitizedSchema = (schemaName == null || schemaName.isEmpty() || "public".equals(schemaName))
+                ? "public"
+                : schemaName.replaceAll("[^a-zA-Z0-9_]", "");
+
+        // Checks if a transaction is active.
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            // If in a transaction, flush, clear, and use the session's connection.
+            log.debug("Active transaction detected. Flushing, clearing, and setting search_path on Hibernate session.");
+            entityManager.flush();
+            entityManager.clear();
+
+            var session = entityManager.unwrap(Session.class);
+            session.doWork(connection -> {
+                try (var statement = connection.createStatement()) {
+                    statement.execute("SET search_path TO " + sanitizedSchema + ", public");
+                }
+            });
+        } else {
+            // If not in a transaction, use JdbcTemplate to set the search_path.
+            // This is suitable for tests with Propagation.NOT_SUPPORTED.
+            log.debug("No active transaction. Setting search_path using JdbcTemplate.");
+            jdbcTemplate.execute("SET search_path TO " + sanitizedSchema + ", public");
+        }
+        log.info("Successfully set search_path to '{}'.", sanitizedSchema);
     }
 
     /**
