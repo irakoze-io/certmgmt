@@ -41,8 +41,6 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // ==================== Business Exceptions ====================
-
     /**
      * Handle tenant not found exceptions.
      */
