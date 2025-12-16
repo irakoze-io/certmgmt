@@ -174,7 +174,7 @@ class TemplateManagementE2ETest extends BaseIntegrationTest {
                         withTenantHeader(get("/api/templates"), testCustomer.getId()))
                 .andDo(print())
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.length()").value(org.hamcrest.Matchers.greaterThanOrEqualTo(3)));
     }
 
@@ -332,7 +332,6 @@ class TemplateManagementE2ETest extends BaseIntegrationTest {
     private String generateUniqueSchema() {
         return "tmpl" + UUID.randomUUID().toString()
                 .replaceAll("-", "")
-                .replaceAll("[0-9]", "")
-                .substring(0, 10);
+                .replaceAll("[0-9]", "");
     }
 }
