@@ -114,7 +114,7 @@ public class OpenApiConfig {
                                 .url("http://localhost:8080")
                                 .description("Local Development Server"),
                         new Server()
-                                .url("<empty>")
+                                .url(appUrl)
                                 .description("Production Server")
                 ))
                 .addSecurityItem(new SecurityRequirement().addList("bearerAuth"))
