@@ -110,17 +110,25 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
 
     @Override
     public String renderHtml(TemplateVersion templateVersion, Certificate certificate) {
-        return renderHtml(templateVersion, certificate, true);
+        return renderHtml(templateVersion, certificate, true, true);
     }
 
     @Override
     public String renderHtml(TemplateVersion templateVersion, Certificate certificate, boolean includeVerificationFooter) {
+        return renderHtml(templateVersion, certificate, includeVerificationFooter, true);
+    }
+
+    @Override
+    public String renderHtml(TemplateVersion templateVersion,
+                             Certificate certificate,
+                             boolean includeVerificationFooter,
+                             boolean includeVerificationData) {
         log.debug("Rendering HTML for certificate ID: {}, includeFooter: {}", certificate.getId(), includeVerificationFooter);
 
         try {
             var recipientData = parseRecipientData(certificate.getRecipientData());
 
-            var context = createTemplateContext(certificate, templateVersion, recipientData);
+            var context = createTemplateContext(certificate, templateVersion, recipientData, includeVerificationData);
 
             var htmlTemplate = templateVersion.getHtmlContent();
             if (htmlTemplate == null || htmlTemplate.trim().isEmpty()) {
@@ -231,7 +239,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
      */
     private Context createTemplateContext(Certificate certificate,
                                           TemplateVersion templateVersion,
-                                          Map<String, Object> recipientData) {
+                                          Map<String, Object> recipientData,
+                                          boolean includeVerificationData) {
         var context = new Context();
 
         // Recipient data (parsed from JSON)
@@ -273,8 +282,10 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         context.setVariable("currentTime", formatTime(now));
         context.setVariable("currentDateTime", formatDateTime(now));
 
-        // Add certificate hash and QR code for verification (if hash exists)
-        addVerificationDataToContext(context, certificate);
+        // Add certificate hash and QR code for verification (if requested and hash exists)
+        if (includeVerificationData) {
+            addVerificationDataToContext(context, certificate);
+        }
 
         // Note: Download URL is not included in PDF generation to avoid inconsistencies
         // Download URLs should be generated on-demand via API endpoints

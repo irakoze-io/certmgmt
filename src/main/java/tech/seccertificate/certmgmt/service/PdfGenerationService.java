@@ -55,6 +55,18 @@ public interface PdfGenerationService {
     String renderHtml(TemplateVersion templateVersion, Certificate certificate, boolean includeVerificationFooter);
 
     /**
+     * Render HTML from template with recipient data, with option to exclude verification variables
+     * from the template context (verificationUrl, qrCodeImage, certificateHash).
+     *
+     * <p>This is useful for public verification pages where we want to display the certificate
+     * content without showing QR codes or verification links.
+     */
+    String renderHtml(TemplateVersion templateVersion,
+                      Certificate certificate,
+                      boolean includeVerificationFooter,
+                      boolean includeVerificationData);
+
+    /**
      * Convert already-rendered HTML to PDF.
      * Performance optimization: Allows reuse of rendered HTML without re-processing template.
      *

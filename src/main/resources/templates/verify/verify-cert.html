@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Certificate Verification</title>
+    <style>
+        body { margin: 0; background: #f6f7fb; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+        .page { max-width: 1100px; margin: 0 auto; padding: 24px; }
+        .card { background: #fff; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.08); overflow: hidden; }
+        .header { padding: 16px 20px; border-bottom: 1px solid #eee; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+        .header h1 { font-size: 18px; margin: 0; }
+        .meta { color: #666; font-size: 13px; }
+        .content { padding: 18px; }
+        /* Make embedded certificate render nicely */
+        .certificate-wrap { background: #fff; }
+    </style>
+</head>
+<body>
+<div class="page">
+    <div class="card">
+        <div class="header">
+            <h1>Certificate Verification</h1>
+            <div class="meta" th:if="${certificate != null}">
+                <span>Certificate #</span>
+                <strong th:text="${certificate.certificateNumber}">CERT-000</strong>
+            </div>
+        </div>
+        <div class="content">
+            <!-- Render the certificate HTML in an isolated iframe to avoid nested <html>/<body> conflicts. -->
+            <iframe
+                    title="Verified certificate"
+                    style="width: 100%; height: 900px; border: 1px solid #eee; border-radius: 10px;"
+                    sandbox="allow-same-origin"
+                    th:attr="srcdoc=${certificateHtml}">
+            </iframe>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+

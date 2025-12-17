@@ -17,13 +17,18 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.context.Context;
 import tech.seccertificate.certmgmt.dto.Response;
 import tech.seccertificate.certmgmt.dto.certificate.CertificateResponse;
 import tech.seccertificate.certmgmt.dto.certificate.GenerateCertificateRequest;
 import tech.seccertificate.certmgmt.entity.Certificate;
 import tech.seccertificate.certmgmt.exception.ApplicationObjectNotFoundException;
 import tech.seccertificate.certmgmt.service.CertificateService;
+import tech.seccertificate.certmgmt.service.PdfGenerationService;
 import tech.seccertificate.certmgmt.service.QrCodeService;
+import tech.seccertificate.certmgmt.service.TemplateService;
+import tech.seccertificate.certmgmt.service.TenantService;
 
 import java.net.URLDecoder;
 import java.net.URI;
@@ -61,6 +66,10 @@ public class CertificateController {
 
     private final CertificateService certificateService;
     private final QrCodeService qrCodeService;
+    private final TemplateService templateService;
+    private final PdfGenerationService pdfGenerationService;
+    private final TenantService tenantService;
+    private final TemplateEngine templateEngine;
     private final ObjectMapper objectMapper;
 
     /**
@@ -344,9 +353,10 @@ public class CertificateController {
             )
     })
     @GetMapping({"/verify", "/verify/{*hash}"})
-    public ResponseEntity<Response<CertificateResponse>> verifyCertificate(
+    public ResponseEntity<?> verifyCertificate(
             @RequestParam(name = "hash", required = false) String hashParam,
-            @PathVariable(name = "hash", required = false) String hashPath
+            @PathVariable(name = "hash", required = false) String hashPath,
+            @RequestHeader(name = "Accept", required = false) String accept
     ) {
         String rawHash = (hashParam != null && !hashParam.isBlank()) ? hashParam : hashPath;
         if (rawHash == null || rawHash.isBlank()) {
@@ -354,19 +364,45 @@ public class CertificateController {
         }
         final String decodedHash = URLDecoder.decode(rawHash, StandardCharsets.UTF_8);
         log.debug("Verifying certificate with hash: {}", decodedHash);
-        
-        var certificate = certificateService.verifyCertificateByHash(decodedHash)
-                .orElseThrow(() -> new ApplicationObjectNotFoundException(
-                        "Certificate with hash " + decodedHash + " not found or invalid"
-                ));
-        
-        var response = mapToDTO(certificate);
-        var unifiedResponse = Response.success(
-                "Certificate verified successfully",
-                response
-        );
-        
-        return ResponseEntity.ok(unifiedResponse);
+
+        try {
+            var certificate = certificateService.verifyCertificateByHash(decodedHash)
+                    .orElseThrow(() -> new ApplicationObjectNotFoundException(
+                            "Certificate with hash " + decodedHash + " not found or invalid"
+                    ));
+
+            // If a browser is calling this endpoint, return an HTML verification page.
+            // Otherwise, return JSON response for API clients.
+            if (accept != null && accept.contains(MediaType.TEXT_HTML_VALUE)) {
+                var templateVersion = templateService.findVersionById(certificate.getTemplateVersionId())
+                        .orElseThrow(() -> new ApplicationObjectNotFoundException(
+                                "Template version " + certificate.getTemplateVersionId() + " not found"
+                        ));
+
+                // Render certificate template as HTML without verification footer/QR/link.
+                String certificateHtml = pdfGenerationService.renderHtml(templateVersion, certificate, false, false);
+
+                var ctx = new Context();
+                ctx.setVariable("certificate", certificate);
+                ctx.setVariable("certificateHtml", certificateHtml);
+                ctx.setVariable("hash", decodedHash);
+                String html = templateEngine.process("verify/verify-cert", ctx);
+
+                return ResponseEntity.ok()
+                        .contentType(MediaType.TEXT_HTML)
+                        .body(html);
+            }
+
+            var response = mapToDTO(certificate);
+            var unifiedResponse = Response.success(
+                    "Certificate verified successfully",
+                    response
+            );
+            return ResponseEntity.ok(unifiedResponse);
+        } finally {
+            // verifyCertificateByHash searches across schemas; ensure we don't leak tenant context.
+            tenantService.clearTenantContext();
+        }
     }
 
     /**
