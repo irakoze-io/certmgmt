@@ -33,6 +33,9 @@ import java.util.Arrays;
 @EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
+    @Value("${app.base-url}")
+    private String appBaseUrl;
+
     private final SecurityExceptionHandlers securityExceptionHandlers;
     private final String jwtSecret;
 
