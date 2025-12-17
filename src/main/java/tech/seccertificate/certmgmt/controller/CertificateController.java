@@ -245,14 +245,20 @@ public class CertificateController {
     public ResponseEntity<Response<CertificateResponse>> revokeCertificate(@PathVariable @NotNull UUID id) {
         log.info("Revoking certificate with ID: {}", id);
 
-        var revokedCertificate = certificateService.revokeCertificate(id);
-        var response = mapToDTO(revokedCertificate);
-        var unifiedResponse = Response.success(
-                "Certificate revoked successfully",
-                response
-        );
+        try {
+            var revokedCertificate = certificateService.revokeCertificate(id);
+            var response = mapToDTO(revokedCertificate);
+            var unifiedResponse = Response.success(
+                    "Certificate revoked successfully",
+                    response
+            );
 
-        return ResponseEntity.ok(unifiedResponse);
+            return ResponseEntity.ok(unifiedResponse);
+        } catch (Exception e) {
+            log.error("An exception occurred while handling a certificate revocation: {}",
+                    e.getMessage(), e);
+            throw e;
+        }
     }
 
     /**

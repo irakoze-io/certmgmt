@@ -14,6 +14,7 @@ import tech.seccertificate.certmgmt.config.TenantSchemaValidator;
 import tech.seccertificate.certmgmt.entity.Certificate;
 import tech.seccertificate.certmgmt.entity.CertificateHash;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
+import tech.seccertificate.certmgmt.exception.CertificateNotFoundException;
 import tech.seccertificate.certmgmt.exception.CustomerNotFoundException;
 import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
 import tech.seccertificate.certmgmt.repository.CertificateRepository;
@@ -409,8 +410,8 @@ public class CertificateServiceImpl implements CertificateService {
         tenantSchemaValidator.validateTenantSchema("revokeCertificate");
 
         var certificate = certificateRepository.findById(certificateId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Certificate not found with ID: " + certificateId
+                .orElseThrow(() -> new CertificateNotFoundException(
+                        certificateId
                 ));
 
         certificate.setStatus(Certificate.CertificateStatus.REVOKED);

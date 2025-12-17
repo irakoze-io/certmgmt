@@ -2,6 +2,7 @@ package tech.seccertificate.certmgmt.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
+import org.hibernate.Session;
 import org.junit.jupiter.api.BeforeEach;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,7 +15,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.context.WebApplicationContext;
 import org.testcontainers.containers.MinIOContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -26,15 +27,13 @@ import tech.seccertificate.certmgmt.config.TenantResolutionFilter;
 import tech.seccertificate.certmgmt.entity.Customer;
 import tech.seccertificate.certmgmt.entity.Template;
 import tech.seccertificate.certmgmt.entity.TemplateVersion;
-import tech.seccertificate.certmgmt.entity.User;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
 import tech.seccertificate.certmgmt.service.CustomerService;
 import tech.seccertificate.certmgmt.service.StorageService;
 import tech.seccertificate.certmgmt.service.TemplateService;
 import tech.seccertificate.certmgmt.service.TenantService;
 
-import java.util.List;
-import java.util.Map;
+import java.sql.Statement;
 import java.util.Random;
 import java.util.UUID;
 
@@ -53,7 +52,6 @@ import java.util.UUID;
  *   <li>S3/MinIO storage for certificate PDFs</li>
  * </ul>
  */
-@Transactional
 @Testcontainers
 @SpringBootTest
 @ActiveProfiles("test")
@@ -61,17 +59,12 @@ public abstract class BaseIntegrationTest {
 
     private final static Logger log = LoggerFactory.getLogger(BaseIntegrationTest.class);
 
-    /**
-     * PostgreSQL Testcontainer instance.
-     * Shared across all tests in the same JVM for performance (container reuse).
-     * The container is started automatically by Testcontainers.
-     */
     @Container
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>(
             DockerImageName.parse("postgres:16-alpine"))
             .withDatabaseName("certmanagement_test")
-            .withUsername("certmgmt_admin")
-            .withPassword("runPQSQLN0w")
+            .withUsername("admin")
+            .withPassword("pw")
             .withReuse(true); // Reuse container across test runs for faster execution
 
     /**
@@ -158,39 +151,19 @@ public abstract class BaseIntegrationTest {
      * The customer will have a tenant schema created, and the tenant context will be set.
      */
     protected Customer createTestCustomer(String name, String domain, String tenantSchema) {
-        // Step 1: Create the customer record in the public schema.
-        var customer = Customer.builder()
+        var createdCustomer = customerService.onboardCustomer(Customer.builder()
                 .name(name)
                 .domain(domain)
                 .tenantSchema(tenantSchema)
                 .maxUsers(10)
                 .maxCertificatesPerMonth(1000)
                 .status(Customer.CustomerStatus.ACTIVE)
-                .build();
-        var createdCustomer = customerService.onboardCustomer(customer);
+                .build());
 
-        // Step 2: Manually set the search_path for the current transaction.
-        // This is the crucial step that makes the subsequent operations tenant-aware.
-        setSearchPath(tenantSchema);
-
-        // Step 3: Set the TenantContext for any subsequent logic that relies on it.
-        TenantContext.setTenantSchema(tenantSchema);
+        setTenantContext(createdCustomer.getTenantSchema());
 
         return createdCustomer;
     }
-
-    /**
-     * Directly sets the search_path on the current connection.
-     */
-    protected void setSearchPath(String schemaName) {
-        if (schemaName == null || schemaName.isEmpty()) {
-            schemaName = "public";
-        }
-        String sanitizedSchema = schemaName.replaceAll("[^a-zA-Z0-9_]", "");
-        jdbcTemplate.execute("SET search_path TO " + sanitizedSchema + ", public");
-        log.info("JDBC search_path set to: {}", sanitizedSchema);
-    }
-
 
     /**
      * Create a test template for earlier created customer
@@ -198,6 +171,7 @@ public abstract class BaseIntegrationTest {
      */
     protected Template createTestTemplate(Customer customer) {
         log.info("Creating test template for customer {}", customer);
+        log.debug("Current tenant context before creating template: {}", TenantContext.getTenantSchema());
 
         var digitsOnlyUUID = UUID.randomUUID().toString()
                 .replaceAll("-", "")
@@ -212,7 +186,8 @@ public abstract class BaseIntegrationTest {
                 .currentVersion(new Random().nextInt(10))
                 .build());
 
-        log.info("Created template with details: {}", template);
+        log.debug("Template created: {}", template);
+
         return template;
     }
 
@@ -223,36 +198,14 @@ public abstract class BaseIntegrationTest {
     protected TemplateVersion createTestTemplateVersion(Template template) {
         log.info("Creating a template version for template with details: {}", template);
 
-        var fieldSchemaMap = Map.of("fields", List.of(
-                Map.of("name", "name",
-                        "type", "text",
-                        "required", true,
-                        "label", "Recipient Name"
-                ),
-                Map.of("name", "email",
-                        "type", "email",
-                        "required", true,
-                        "label", "Email Address")
-        ));
-
-        var fieldSchema = "";
-        try {
-            fieldSchema = objectMapper.writeValueAsString(fieldSchemaMap);
-        } catch (Exception e){}
-
         var tvr = TemplateVersion.builder()
                 .template(template)
                 .createdBy(UUID.randomUUID())
-                .fieldSchema(fieldSchema)
                 .htmlContent("<html><h1>Test</h1></html>")
                 .build();
 
         try {
-            var tvrResponse = templateService.createTemplateVersion(template.getId(), tvr);
-            log.info("TemplateVersion response: {}", tvrResponse);
-
-            // TemplateVersion must be published to be used for a certificate creation
-            return templateService.publishVersion(tvrResponse.getId());
+            return templateService.createTemplateVersion(template.getId(), tvr);
         } catch (Exception e) {
             log.error("An error occurred while creating a template version for template with ID {}: {}",
                     template.getId(), e.getMessage());
@@ -265,25 +218,48 @@ public abstract class BaseIntegrationTest {
      */
     protected void setTenantContext(Long customerId) {
         customerRepository.findById(customerId).ifPresent(customer -> {
-            setSearchPath(customer.getTenantSchema());
-            TenantContext.setTenantSchema(customer.getTenantSchema());
+            setTenantContext(customer.getTenantSchema());
         });
     }
 
     /**
      * Set tenant context using schema name and updates the current transaction's search_path.
+     * This method is now safe to call both inside and outside a transaction.
      */
     protected void setTenantContext(String schemaName) {
-        setSearchPath(schemaName);
         TenantContext.setTenantSchema(schemaName);
+
+        var sanitizedSchema = (schemaName == null || schemaName.isEmpty() || "public".equals(schemaName))
+                ? "public"
+                : schemaName.replaceAll("[^a-zA-Z0-9_]", "");
+
+        // Checks if a transaction is active.
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            // If in a transaction, flush, clear, and use the session's connection.
+            log.debug("Active transaction detected. Flushing, clearing, and setting search_path on Hibernate session.");
+            entityManager.flush();
+            entityManager.clear();
+
+            var session = entityManager.unwrap(Session.class);
+            session.doWork(connection -> {
+                try (var statement = connection.createStatement()) {
+                    statement.execute("SET search_path TO " + sanitizedSchema + ", public");
+                }
+            });
+        } else {
+            // If not in a transaction, use JdbcTemplate to set the search_path.
+            // This is suitable for tests with Propagation.NOT_SUPPORTED.
+            log.debug("No active transaction. Setting search_path using JdbcTemplate.");
+            jdbcTemplate.execute("SET search_path TO " + sanitizedSchema + ", public");
+        }
+        log.info("Successfully set search_path to '{}'.", sanitizedSchema);
     }
 
     /**
      * Clear tenant context and resets the search_path to public.
      */
     protected void clearTenantContext() {
-        TenantContext.clear();
-        setSearchPath("public");
+        setTenantContext("public");
     }
 
     /**
@@ -308,6 +284,6 @@ public abstract class BaseIntegrationTest {
      * Cleanup after each test - clear tenant context.
      */
     protected void cleanup() {
-        TenantContext.clear();
+        clearTenantContext();
     }
 }
