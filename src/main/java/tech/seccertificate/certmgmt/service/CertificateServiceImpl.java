@@ -3,6 +3,7 @@ package tech.seccertificate.certmgmt.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -38,6 +39,8 @@ import java.util.*;
 @RequiredArgsConstructor
 public class CertificateServiceImpl implements CertificateService {
 
+    @Value("${app.base-url}")
+    private String appBaseUrl;
     private static final String PDF_CONTENT_TYPE = "application/pdf";
 
     private final CertificateRepository certificateRepository;
@@ -752,6 +755,8 @@ public class CertificateServiceImpl implements CertificateService {
         if (baseUrl == null || baseUrl.isEmpty()) {
             baseUrl = System.getProperty("app.base-url");
         }
+
+        if (baseUrl == null || baseUrl.isEmpty()) baseUrl = appBaseUrl;
         if (baseUrl == null || baseUrl.isEmpty()) {
             baseUrl = "http://localhost:8080";
         }
