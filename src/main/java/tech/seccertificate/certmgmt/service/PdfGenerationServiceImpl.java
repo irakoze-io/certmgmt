@@ -21,6 +21,8 @@ import jakarta.annotation.PostConstruct;
 import javax.imageio.ImageIO;
 import java.io.ByteArrayOutputStream;
 import java.io.StringWriter;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
@@ -195,7 +197,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
             var certificateHash = certificateHashOpt.get();
             var hash = certificateHash.getHashValue();
             var baseUrl = getBaseUrl();
-            var verificationUrl = baseUrl + "/api/certificates/verify/" + hash;
+            var verificationUrl = baseUrl + "/api/certificates/verify?hash="
+                    + URLEncoder.encode(hash, StandardCharsets.UTF_8);
 
             // Generate QR code
             String qrCodeDataUri;
@@ -291,7 +294,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
                 var certificateHash = certificateHashOpt.get();
                 var hash = certificateHash.getHashValue();
                 var baseUrl = getBaseUrl();
-                var verificationUrl = baseUrl + "/api/certificates/verify/" + hash;
+                var verificationUrl = baseUrl + "/api/certificates/verify?hash="
+                        + URLEncoder.encode(hash, StandardCharsets.UTF_8);
 
                 // Add hash to context
                 context.setVariable("certificateHash", hash);

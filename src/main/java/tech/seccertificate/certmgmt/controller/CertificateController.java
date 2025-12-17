@@ -25,7 +25,9 @@ import tech.seccertificate.certmgmt.exception.ApplicationObjectNotFoundException
 import tech.seccertificate.certmgmt.service.CertificateService;
 import tech.seccertificate.certmgmt.service.QrCodeService;
 
+import java.net.URLDecoder;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -44,7 +46,7 @@ import java.util.UUID;
  *   <li>DELETE /api/certificates/{id} - Delete certificate</li>
  *   <li>POST /api/certificates/{id}/revoke - Revoke a certificate</li>
  *   <li>GET /api/certificates/{id}/download-url - Get signed download URL</li>
- *   <li>GET /api/certificates/verify/{hash} - Public verification endpoint</li>
+ *   <li>GET /api/certificates/verify?hash=... - Public verification endpoint</li>
  * </ul>
  * 
  * <p>Note: All operations require tenant context to be set (via X-Tenant-Id header),
@@ -313,7 +315,8 @@ public class CertificateController {
      * Public verification endpoint for certificate hash.
      * This endpoint doesn't require authentication and can be used for public verification.
      *
-     * @param hash The certificate hash to verify
+     * @param hashParam The certificate hash to verify
+     * @param hashPath The certificate hash to verify -- To ensure backward compatibility
      * @return Certificate response with 200 status if valid, or 404 if not found/invalid
      */
     @Operation(
@@ -340,12 +343,22 @@ public class CertificateController {
                     )
             )
     })
-    @GetMapping("/verify/{hash}")
-    public ResponseEntity<Response<CertificateResponse>> verifyCertificate(@PathVariable @NotNull String hash) {
-        log.debug("Verifying certificate with hash: {}", hash);
+    @GetMapping({"/verify", "/verify/{*hash}"})
+    public ResponseEntity<Response<CertificateResponse>> verifyCertificate(
+            @RequestParam(name = "hash", required = false) String hashParam,
+            @PathVariable(name = "hash", required = false) String hashPath
+    ) {
+        String rawHash = (hashParam != null && !hashParam.isBlank()) ? hashParam : hashPath;
+        if (rawHash == null || rawHash.isBlank()) {
+            throw new ApplicationObjectNotFoundException("Certificate hash is required");
+        }
+        final String decodedHash = URLDecoder.decode(rawHash, StandardCharsets.UTF_8);
+        log.debug("Verifying certificate with hash: {}", decodedHash);
         
-        var certificate = certificateService.verifyCertificateByHash(hash)
-                .orElseThrow(() -> new ApplicationObjectNotFoundException("Certificate with hash " + hash + " not found or invalid"));
+        var certificate = certificateService.verifyCertificateByHash(decodedHash)
+                .orElseThrow(() -> new ApplicationObjectNotFoundException(
+                        "Certificate with hash " + decodedHash + " not found or invalid"
+                ));
         
         var response = mapToDTO(certificate);
         var unifiedResponse = Response.success(

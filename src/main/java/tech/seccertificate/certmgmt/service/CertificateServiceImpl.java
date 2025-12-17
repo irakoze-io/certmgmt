@@ -21,6 +21,8 @@ import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
 import tech.seccertificate.certmgmt.repository.CertificateRepository;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -738,10 +740,10 @@ public class CertificateServiceImpl implements CertificateService {
                         "Certificate hash not found for certificate ID: " + certificateId
                 ));
 
-        // Build verification URL: /api/certificates/verify/{hash}
+        // Build verification URL. Hash is Base64 and may contain '/', so it must not be placed in the path.
         String hash = certificateHash.getHashValue();
         String baseUrl = getBaseUrl();
-        return baseUrl + "/api/certificates/verify/" + hash;
+        return baseUrl + "/api/certificates/verify?hash=" + URLEncoder.encode(hash, StandardCharsets.UTF_8);
     }
 
     /**
