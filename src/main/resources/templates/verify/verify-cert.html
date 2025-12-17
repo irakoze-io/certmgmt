@@ -170,6 +170,25 @@
         .v{ color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
         .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-weight: 600; }
 
+        /* Issued date/time (match provided style) */
+        .dt{
+            display: inline-flex;
+            flex-direction: column;
+            gap: 2px;
+            line-height: 1.05;
+        }
+        .dt .d{
+            font-size: 13px;          /* keep consistent with page typography */
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            color: var(--text);
+        }
+        .dt .t{
+            font-size: 12px;          /* same scale as other values */
+            font-weight: 600;
+            color: var(--muted);
+        }
+
         /* Certificate frame inspired by the certificate screenshot */
         .preview{
             background: #fff;
@@ -292,10 +311,16 @@
                 <div class="v" th:text="${certificate != null ? certificate.certificateNumber : '-'}">CERT-000</div>
 
                 <div class="k">Issued</div>
-                <div class="v" th:text="${certificate != null ? certificate.issuedAt : '-'}">2025-12-17T00:00:00</div>
+                <div class="v">
+                    <span class="dt" th:if="${issuedDate != null}">
+                        <span class="d" th:text="${issuedDate}">17 Dec 25</span>
+                        <span class="t" th:text="${issuedTime}">23:00</span>
+                    </span>
+                    <span th:unless="${issuedDate != null}">-</span>
+                </div>
 
                 <div class="k">Issuer</div>
-                <div class="v" th:text="${certificate != null ? certificate.issuedBy : '-'}">-</div>
+                <div class="v" th:text="${issuerName}">-</div>
             </div>
         </section>
 

@@ -19,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
+import org.springframework.web.util.UriUtils;
 import tech.seccertificate.certmgmt.dto.Response;
 import tech.seccertificate.certmgmt.dto.certificate.CertificateResponse;
 import tech.seccertificate.certmgmt.dto.certificate.GenerateCertificateRequest;
@@ -30,9 +31,10 @@ import tech.seccertificate.certmgmt.service.QrCodeService;
 import tech.seccertificate.certmgmt.service.TemplateService;
 import tech.seccertificate.certmgmt.service.TenantService;
 
-import java.net.URLDecoder;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -63,6 +65,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Tag(name = "Certificates", description = "Certificate generation, management, and verification operations")
 public class CertificateController {
+
+    private static final DateTimeFormatter VERIFY_ISSUED_DATE_FMT =
+            DateTimeFormatter.ofPattern("dd MMM yy", Locale.ENGLISH);
+    private static final DateTimeFormatter VERIFY_ISSUED_TIME_FMT =
+            DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH);
 
     private final CertificateService certificateService;
     private final QrCodeService qrCodeService;
@@ -367,6 +374,9 @@ public class CertificateController {
                 ctx.setVariable("certificate", null);
                 ctx.setVariable("certificateHtml", null);
                 ctx.setVariable("hash", "");
+                ctx.setVariable("issuedDate", null);
+                ctx.setVariable("issuedTime", null);
+                ctx.setVariable("issuerName", "-");
                 ctx.setVariable("message", "Certificate hash is required.");
                 String html = templateEngine.process("verify/verify-cert", ctx);
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -375,7 +385,10 @@ public class CertificateController {
             }
             throw new ApplicationObjectNotFoundException("Certificate hash is required");
         }
-        final String decodedHash = URLDecoder.decode(rawHash, StandardCharsets.UTF_8);
+        // Some clients/decoders treat '+' as space in query strings; Base64 hashes require '+'.
+        rawHash = rawHash.trim().replace(' ', '+');
+        // IMPORTANT: don't use URLDecoder here; it converts '+' to space which breaks Base64 hashes.
+        final String decodedHash = UriUtils.decode(rawHash, StandardCharsets.UTF_8);
         log.debug("Verifying certificate with hash: {}", decodedHash);
 
         try {
@@ -389,6 +402,9 @@ public class CertificateController {
                     ctx.setVariable("certificate", null);
                     ctx.setVariable("certificateHtml", null);
                     ctx.setVariable("hash", decodedHash);
+                    ctx.setVariable("issuedDate", null);
+                    ctx.setVariable("issuedTime", null);
+                    ctx.setVariable("issuerName", "-");
                     ctx.setVariable("message", "No issued certificate was found for this hash.");
                     String html = templateEngine.process("verify/verify-cert", ctx);
                     return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -405,11 +421,31 @@ public class CertificateController {
                 // Render certificate template as HTML without verification footer/QR/link.
                 String certificateHtml = pdfGenerationService.renderHtml(templateVersion, certificate, false, false);
 
+                String issuedDate = certificate.getIssuedAt() != null ? certificate.getIssuedAt().format(VERIFY_ISSUED_DATE_FMT) : null;
+                String issuedTime = certificate.getIssuedAt() != null ? certificate.getIssuedAt().format(VERIFY_ISSUED_TIME_FMT) : null;
+
+                String issuerName = "-";
+                if (certificate.getIssuedByUser() != null) {
+                    var firstName = certificate.getIssuedByUser().getFirstName() != null ? certificate.getIssuedByUser().getFirstName() : "";
+                    var lastName = certificate.getIssuedByUser().getLastName() != null ? certificate.getIssuedByUser().getLastName() : "";
+                    var combined = (firstName + " " + lastName).trim();
+                    if (!combined.isBlank()) {
+                        issuerName = combined;
+                    } else if (certificate.getIssuedByUser().getEmail() != null && !certificate.getIssuedByUser().getEmail().isBlank()) {
+                        issuerName = parseNameFromEmail(certificate.getIssuedByUser().getEmail());
+                    }
+                } else if (certificate.getIssuedBy() != null) {
+                    issuerName = certificate.getIssuedBy().toString();
+                }
+
                 var ctx = new Context();
                 ctx.setVariable("verified", true);
                 ctx.setVariable("certificate", certificate);
                 ctx.setVariable("certificateHtml", certificateHtml);
                 ctx.setVariable("hash", decodedHash);
+                ctx.setVariable("issuedDate", issuedDate);
+                ctx.setVariable("issuedTime", issuedTime);
+                ctx.setVariable("issuerName", issuerName);
                 String html = templateEngine.process("verify/verify-cert", ctx);
 
                 return ResponseEntity.ok()
@@ -432,6 +468,22 @@ public class CertificateController {
             // verifyCertificateByHash searches across schemas; ensure we don't leak tenant context.
             tenantService.clearTenantContext();
         }
+    }
+
+    private static String parseNameFromEmail(String email) {
+        String local = email;
+        int at = local.indexOf('@');
+        if (at > 0) local = local.substring(0, at);
+        local = local.replaceAll("[^a-zA-Z0-9._-]", " ");
+        var parts = local.split("[._\\-\\s]+");
+        var sb = new StringBuilder();
+        for (var p : parts) {
+            if (p == null || p.isBlank()) continue;
+            String word = p.substring(0, 1).toUpperCase(Locale.ENGLISH) + p.substring(1).toLowerCase(Locale.ENGLISH);
+            if (!sb.isEmpty()) sb.append(' ');
+            sb.append(word);
+        }
+        return sb.isEmpty() ? email : sb.toString();
     }
 
     /**
