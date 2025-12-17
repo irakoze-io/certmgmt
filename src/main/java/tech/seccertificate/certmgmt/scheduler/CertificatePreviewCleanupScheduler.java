@@ -15,6 +15,11 @@ import tech.seccertificate.certmgmt.service.TenantService;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(
+        name = "app.scheduling.certificate-preview-cleanup.enabled",
+        havingValue = "true",
+        matchIfMissing = true
+)
 public class CertificatePreviewCleanupScheduler {
 
     private static final int CLEANUP_THRESHOLD_MINUTES = 15;
