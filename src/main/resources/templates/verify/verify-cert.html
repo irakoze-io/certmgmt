@@ -3,40 +3,326 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>Certificate Verification</title>
+    <title>Sec CERTIFICATE · Verification</title>
     <style>
-        body { margin: 0; background: #f6f7fb; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-        .page { max-width: 1100px; margin: 0 auto; padding: 24px; }
-        .card { background: #fff; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.08); overflow: hidden; }
-        .header { padding: 16px 20px; border-bottom: 1px solid #eee; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
-        .header h1 { font-size: 18px; margin: 0; }
-        .meta { color: #666; font-size: 13px; }
-        .content { padding: 18px; }
-        /* Make embedded certificate render nicely */
-        .certificate-wrap { background: #fff; }
+        :root{
+            --bg: #f6f7fb;
+            --card: #ffffff;
+            --text: #0f172a;
+            --muted: #64748b;
+            --line: rgba(15, 23, 42, .08);
+            --shadow: 0 10px 28px rgba(15, 23, 42, .08);
+            --shadow-sm: 0 6px 16px rgba(15, 23, 42, .06);
+            --brand: #1d4ed8;         /* close to certmanager UI blue */
+            --brand-2: #2563eb;
+            --ok: #16a34a;
+        }
+
+        * { box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        }
+
+        /* Masthead (match provided certmanager logo screenshot) */
+        .masthead{
+            background: #fff;
+            border-bottom: 1px solid var(--line);
+        }
+        .masthead-inner{
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 16px 18px 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        .brandblock{
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
+        }
+        .logo{
+            display: inline-flex;
+            align-items: flex-end;
+            gap: 8px;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            color: #111827;
+            line-height: 1;
+        }
+        .logo-text{
+            font-size: 30px; /* closer to app header */
+        }
+        .logo-mark{
+            width: 22px;
+            height: 6px;
+            background: var(--brand);
+            border-radius: 2px;
+            margin-bottom: 4px; /* pushes it below baseline like the screenshot */
+        }
+        .subtitle{
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.1;
+        }
+        @media (max-width: 520px){
+            .masthead-inner{ justify-content: center; }
+            .logo-text{ font-size: 26px; }
+            .logo-mark{ width: 18px; height: 5px; margin-bottom: 4px; }
+        }
+
+        .page { max-width: 1180px; margin: 0 auto; padding: 22px 18px 36px; }
+
+        .layout{
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            gap: 18px;
+            align-items: start;
+        }
+        @media (max-width: 980px){
+            .layout{ grid-template-columns: 1fr; }
+        }
+
+        .card{
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+        }
+        .card-h{
+            padding: 16px 18px;
+            border-bottom: 1px solid var(--line);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .card-title{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .card-title h1{
+            margin: 0;
+            font-size: 16px;
+            letter-spacing: -0.01em;
+        }
+        .status-pill{
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            font-size: 12px;
+            font-weight: 700;
+            background: #fff;
+            white-space: nowrap;
+        }
+        .status-pill .dot{
+            width: 8px; height: 8px;
+            border-radius: 999px;
+        }
+        .status-pill.ok{
+            color: #166534;
+            border-color: rgba(22,163,74,.25);
+            background: rgba(22,163,74,.08);
+        }
+        .status-pill.ok .dot{ background: var(--ok); box-shadow: 0 0 0 3px rgba(22,163,74,.12); }
+        .status-pill.bad{
+            color: #991b1b;
+            border-color: rgba(239,68,68,.25);
+            background: rgba(239,68,68,.08);
+        }
+        .status-pill.bad .dot{ background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,.12); }
+
+        .alert{
+            margin: 12px 18px 18px;
+            padding: 12px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(239,68,68,.25);
+            background: rgba(239,68,68,.08);
+            color: #7f1d1d;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        .sub{
+            margin: 0;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        .kv{
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            gap: 10px 12px;
+            padding: 14px 18px 18px;
+            font-size: 13px;
+        }
+        .k{ color: var(--muted); }
+        .v{ color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+        .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-weight: 600; }
+
+        /* Certificate frame inspired by the certificate screenshot */
+        .preview{
+            background: #fff;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .preview-h{
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--line);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .preview-h .title{
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .preview-h .title strong{ font-size: 14px; }
+        .preview-h .title span{ font-size: 12px; color: var(--muted); }
+
+        .frame{
+            position: relative;
+            padding: 18px;
+            background:
+                /* subtle wavy lines */
+                repeating-linear-gradient( -8deg, rgba(29,78,216,.05) 0 2px, rgba(255,255,255,0) 2px 28px);
+        }
+        .frame::before{
+            content:"";
+            position:absolute;
+            inset: 14px;
+            border: 3px solid rgba(37,99,235,.22);
+            border-radius: 14px;
+            pointer-events: none;
+        }
+        .frame::after{
+            content:"";
+            position:absolute;
+            inset: 26px;
+            border: 2px solid rgba(37,99,235,.55);
+            border-radius: 10px;
+            pointer-events: none;
+        }
+        .iframe-wrap{
+            position: relative;
+            z-index: 1;
+            background: #fff;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, .10);
+        }
+        iframe{
+            width: 100%;
+            border: 0;
+            display: block;
+            height: min(920px, 75vh);
+        }
+
+        .empty{
+            padding: 26px 18px 30px;
+            text-align: center;
+            color: var(--muted);
+        }
+        .empty .big{
+            color: var(--text);
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            margin-bottom: 6px;
+        }
+        .empty .box{
+            margin-top: 16px;
+            border: 1px dashed rgba(15,23,42,.20);
+            border-radius: 12px;
+            background: rgba(255,255,255,.7);
+            padding: 18px;
+            font-size: 13px;
+        }
     </style>
 </head>
 <body>
-<div class="page">
-    <div class="card">
-        <div class="header">
-            <h1>Certificate Verification</h1>
-            <div class="meta" th:if="${certificate != null}">
-                <span>Certificate #</span>
-                <strong th:text="${certificate.certificateNumber}">CERT-000</strong>
+<header class="masthead" aria-label="certmanager">
+    <div class="masthead-inner">
+        <div class="brandblock">
+            <div class="logo" aria-label="certmanager logo">
+                <span class="logo-text">certmanager</span>
+                <span class="logo-mark" aria-hidden="true"></span>
             </div>
-        </div>
-        <div class="content">
-            <!-- Render the certificate HTML in an isolated iframe to avoid nested <html>/<body> conflicts. -->
-            <iframe
-                    title="Verified certificate"
-                    style="width: 100%; height: 900px; border: 1px solid #eee; border-radius: 10px;"
-                    sandbox="allow-same-origin"
-                    th:attr="srcdoc=${certificateHtml}">
-            </iframe>
+            <div class="subtitle">Verification</div>
         </div>
     </div>
-</div>
+</header>
+
+<main class="page">
+    <div class="layout">
+        <section class="card" aria-label="Verification details">
+            <div class="card-h">
+                <div class="card-title">
+                    <h1>Certificate verification</h1>
+                    <span class="status-pill ok" th:if="${verified}">
+                        <span class="dot" aria-hidden="true"></span>Verified
+                    </span>
+                    <span class="status-pill bad" th:unless="${verified}">
+                        <span class="dot" aria-hidden="true"></span>Not verified
+                    </span>
+                </div>
+                <p class="sub" th:if="${verified}">This certificate was validated against its stored hash. The preview below shows the certificate content (without QR code / verification URL).</p>
+                <p class="sub" th:unless="${verified}">We couldn’t verify a certificate for the provided hash. This can happen if the hash is invalid, the certificate was revoked, or it doesn’t exist.</p>
+            </div>
+            <div class="alert" th:if="${message != null}" th:text="${message}">Message</div>
+
+            <div class="kv">
+                <div class="k">Hash</div>
+                <div class="v mono" th:text="${hash}">hash</div>
+
+                <div class="k">Certificate #</div>
+                <div class="v" th:text="${certificate != null ? certificate.certificateNumber : '-'}">CERT-000</div>
+
+                <div class="k">Issued</div>
+                <div class="v" th:text="${certificate != null ? certificate.issuedAt : '-'}">2025-12-17T00:00:00</div>
+
+                <div class="k">Issuer</div>
+                <div class="v" th:text="${certificate != null ? certificate.issuedBy : '-'}">-</div>
+            </div>
+        </section>
+
+        <section class="preview" aria-label="Certificate preview">
+            <div class="preview-h">
+                <div class="title">
+                    <strong>Certificate preview</strong>
+                    <span th:if="${verified}">Rendered from the certificate template</span>
+                    <span th:unless="${verified}">No preview available</span>
+                </div>
+            </div>
+            <div class="frame">
+                <div class="iframe-wrap" th:if="${verified}">
+                    <!-- Render the certificate HTML in an isolated iframe to avoid nested <html>/<body> conflicts. -->
+                    <iframe title="Verified certificate" sandbox="allow-same-origin" th:attr="srcdoc=${certificateHtml}"></iframe>
+                </div>
+                <div class="empty" th:unless="${verified}">
+                    <div class="big">Certificate not found</div>
+                    <div>Double-check the link or scan the QR code again.</div>
+                    <div class="box">
+                        If you expected this to work, the certificate might have been revoked or the QR code may have been altered.
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+</main>
 </body>
 </html>
 

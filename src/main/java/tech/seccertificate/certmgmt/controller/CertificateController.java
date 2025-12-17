@@ -358,22 +358,45 @@ public class CertificateController {
             @PathVariable(name = "hash", required = false) String hashPath,
             @RequestHeader(name = "Accept", required = false) String accept
     ) {
+        final boolean wantsHtml = accept != null && accept.contains(MediaType.TEXT_HTML_VALUE);
         String rawHash = (hashParam != null && !hashParam.isBlank()) ? hashParam : hashPath;
         if (rawHash == null || rawHash.isBlank()) {
+            if (wantsHtml) {
+                var ctx = new Context();
+                ctx.setVariable("verified", false);
+                ctx.setVariable("certificate", null);
+                ctx.setVariable("certificateHtml", null);
+                ctx.setVariable("hash", "");
+                ctx.setVariable("message", "Certificate hash is required.");
+                String html = templateEngine.process("verify/verify-cert", ctx);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.TEXT_HTML)
+                        .body(html);
+            }
             throw new ApplicationObjectNotFoundException("Certificate hash is required");
         }
         final String decodedHash = URLDecoder.decode(rawHash, StandardCharsets.UTF_8);
         log.debug("Verifying certificate with hash: {}", decodedHash);
 
         try {
-            var certificate = certificateService.verifyCertificateByHash(decodedHash)
-                    .orElseThrow(() -> new ApplicationObjectNotFoundException(
-                            "Certificate with hash " + decodedHash + " not found or invalid"
-                    ));
-
             // If a browser is calling this endpoint, return an HTML verification page.
             // Otherwise, return JSON response for API clients.
-            if (accept != null && accept.contains(MediaType.TEXT_HTML_VALUE)) {
+            if (wantsHtml) {
+                var certOpt = certificateService.verifyCertificateByHash(decodedHash);
+                if (certOpt.isEmpty()) {
+                    var ctx = new Context();
+                    ctx.setVariable("verified", false);
+                    ctx.setVariable("certificate", null);
+                    ctx.setVariable("certificateHtml", null);
+                    ctx.setVariable("hash", decodedHash);
+                    ctx.setVariable("message", "No issued certificate was found for this hash.");
+                    String html = templateEngine.process("verify/verify-cert", ctx);
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                            .contentType(MediaType.TEXT_HTML)
+                            .body(html);
+                }
+
+                var certificate = certOpt.get();
                 var templateVersion = templateService.findVersionById(certificate.getTemplateVersionId())
                         .orElseThrow(() -> new ApplicationObjectNotFoundException(
                                 "Template version " + certificate.getTemplateVersionId() + " not found"
@@ -383,6 +406,7 @@ public class CertificateController {
                 String certificateHtml = pdfGenerationService.renderHtml(templateVersion, certificate, false, false);
 
                 var ctx = new Context();
+                ctx.setVariable("verified", true);
                 ctx.setVariable("certificate", certificate);
                 ctx.setVariable("certificateHtml", certificateHtml);
                 ctx.setVariable("hash", decodedHash);
@@ -392,6 +416,11 @@ public class CertificateController {
                         .contentType(MediaType.TEXT_HTML)
                         .body(html);
             }
+
+            var certificate = certificateService.verifyCertificateByHash(decodedHash)
+                    .orElseThrow(() -> new ApplicationObjectNotFoundException(
+                            "Certificate with hash " + decodedHash + " not found or invalid"
+                    ));
 
             var response = mapToDTO(certificate);
             var unifiedResponse = Response.success(
