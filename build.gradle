@@ -141,6 +141,17 @@ tasks.named('bootRun') {
     // Or use: ./gradlew bootRun -x test to skip tests for faster development
 }
 
+// bootTestRun (Spring Boot Gradle plugin) runs the app using the test source set.
+// Use an ephemeral port by default to avoid local port collisions (e.g. 8080 already in use).
+tasks.named('bootTestRun', BootRun) {
+    if (!System.getProperty('spring.profiles.active')) {
+        systemProperty 'spring.profiles.active', 'test'
+    }
+    if (!System.getProperty('server.port')) {
+        systemProperty 'server.port', '0'
+    }
+}
+
 // Custom task: bootRunWithTests - explicitly runs tests before bootRun
 tasks.register('bootRunWithTests') {
     group = 'application'
