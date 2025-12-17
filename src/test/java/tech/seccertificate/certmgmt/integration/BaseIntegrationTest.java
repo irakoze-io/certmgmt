@@ -33,7 +33,7 @@ import tech.seccertificate.certmgmt.service.StorageService;
 import tech.seccertificate.certmgmt.service.TemplateService;
 import tech.seccertificate.certmgmt.service.TenantService;
 
-import java.sql.Statement;
+import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 
@@ -198,10 +198,18 @@ public abstract class BaseIntegrationTest {
     protected TemplateVersion createTestTemplateVersion(Template template) {
         log.info("Creating a template version for template with details: {}", template);
 
+        var fs = "";
+        try {
+            var fsMap = Map.of("name", "string", "email", "string");
+            fs = objectMapper.writeValueAsString(fsMap);
+        }
+        catch (Exception _) {}
+
         var tvr = TemplateVersion.builder()
                 .template(template)
                 .createdBy(UUID.randomUUID())
                 .htmlContent("<html><h1>Test</h1></html>")
+                .fieldSchema(fs)
                 .build();
 
         try {
