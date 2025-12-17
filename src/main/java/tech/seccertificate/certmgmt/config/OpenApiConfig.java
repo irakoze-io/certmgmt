@@ -42,6 +42,9 @@ public class OpenApiConfig {
     @Value("${spring.application.name}")
     private String appName;
 
+    @Value("${app.base-url}")
+    private String appUrl;
+
     @Bean
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
