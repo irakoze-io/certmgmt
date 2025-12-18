@@ -71,15 +71,16 @@ class CustomerControllerIntegrationTest extends BaseIntegrationTest {
         // Now assert
         resultActions.andExpect(status().isCreated())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.id").exists())
-                .andExpect(jsonPath("$.name").value("Test Customer"))
-                .andExpect(jsonPath("$.domain").value(uniqueDomain))
-                .andExpect(jsonPath("$.tenantSchema").value(uniqueSchema))
-                .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.id").exists())
+                .andExpect(jsonPath("$.data.name").value("Test Customer"))
+                .andExpect(jsonPath("$.data.domain").value(uniqueDomain))
+                .andExpect(jsonPath("$.data.tenantSchema").value(uniqueSchema))
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
                 .andExpect(header().exists("Location"));
 
+        var dataTree = objectMapper.readTree(responseBody).get("data");
         // Verify customer was created in database
-        var createdCustomer = objectMapper.readValue(responseBody, CustomerResponse.class);
+        var createdCustomer = objectMapper.treeToValue(dataTree, CustomerResponse.class);
         
         assertThat(customerRepository.findById(createdCustomer.getId()))
                 .isPresent()
