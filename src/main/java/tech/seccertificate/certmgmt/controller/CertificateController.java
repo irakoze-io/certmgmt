@@ -17,15 +17,24 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.context.Context;
+import org.springframework.web.util.UriUtils;
 import tech.seccertificate.certmgmt.dto.Response;
 import tech.seccertificate.certmgmt.dto.certificate.CertificateResponse;
 import tech.seccertificate.certmgmt.dto.certificate.GenerateCertificateRequest;
 import tech.seccertificate.certmgmt.entity.Certificate;
 import tech.seccertificate.certmgmt.exception.ApplicationObjectNotFoundException;
 import tech.seccertificate.certmgmt.service.CertificateService;
+import tech.seccertificate.certmgmt.service.PdfGenerationService;
 import tech.seccertificate.certmgmt.service.QrCodeService;
+import tech.seccertificate.certmgmt.service.TemplateService;
+import tech.seccertificate.certmgmt.service.TenantService;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -44,7 +53,7 @@ import java.util.UUID;
  *   <li>DELETE /api/certificates/{id} - Delete certificate</li>
  *   <li>POST /api/certificates/{id}/revoke - Revoke a certificate</li>
  *   <li>GET /api/certificates/{id}/download-url - Get signed download URL</li>
- *   <li>GET /api/certificates/verify/{hash} - Public verification endpoint</li>
+ *   <li>GET /api/certificates/verify?hash=... - Public verification endpoint</li>
  * </ul>
  * 
  * <p>Note: All operations require tenant context to be set (via X-Tenant-Id header),
@@ -57,8 +66,17 @@ import java.util.UUID;
 @Tag(name = "Certificates", description = "Certificate generation, management, and verification operations")
 public class CertificateController {
 
+    private static final DateTimeFormatter VERIFY_ISSUED_DATE_FMT =
+            DateTimeFormatter.ofPattern("dd MMM yy", Locale.ENGLISH);
+    private static final DateTimeFormatter VERIFY_ISSUED_TIME_FMT =
+            DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH);
+
     private final CertificateService certificateService;
     private final QrCodeService qrCodeService;
+    private final TemplateService templateService;
+    private final PdfGenerationService pdfGenerationService;
+    private final TenantService tenantService;
+    private final TemplateEngine templateEngine;
     private final ObjectMapper objectMapper;
 
     /**
@@ -313,7 +331,8 @@ public class CertificateController {
      * Public verification endpoint for certificate hash.
      * This endpoint doesn't require authentication and can be used for public verification.
      *
-     * @param hash The certificate hash to verify
+     * @param hashParam The certificate hash to verify
+     * @param hashPath The certificate hash to verify -- To ensure backward compatibility
      * @return Certificate response with 200 status if valid, or 404 if not found/invalid
      */
     @Operation(
@@ -340,20 +359,131 @@ public class CertificateController {
                     )
             )
     })
-    @GetMapping("/verify/{hash}")
-    public ResponseEntity<Response<CertificateResponse>> verifyCertificate(@PathVariable @NotNull String hash) {
-        log.debug("Verifying certificate with hash: {}", hash);
-        
-        var certificate = certificateService.verifyCertificateByHash(hash)
-                .orElseThrow(() -> new ApplicationObjectNotFoundException("Certificate with hash " + hash + " not found or invalid"));
-        
-        var response = mapToDTO(certificate);
-        var unifiedResponse = Response.success(
-                "Certificate verified successfully",
-                response
-        );
-        
-        return ResponseEntity.ok(unifiedResponse);
+    @GetMapping({"/verify", "/verify/{*hash}"})
+    public ResponseEntity<?> verifyCertificate(
+            @RequestParam(name = "hash", required = false) String hashParam,
+            @PathVariable(name = "hash", required = false) String hashPath,
+            @RequestHeader(name = "Accept", required = false) String accept
+    ) {
+        final boolean wantsHtml = accept != null && accept.contains(MediaType.TEXT_HTML_VALUE);
+        String rawHash = (hashParam != null && !hashParam.isBlank()) ? hashParam : hashPath;
+        if (rawHash == null || rawHash.isBlank()) {
+            if (wantsHtml) {
+                var ctx = new Context();
+                ctx.setVariable("verified", false);
+                ctx.setVariable("certificate", null);
+                ctx.setVariable("certificateHtml", null);
+                ctx.setVariable("hash", "");
+                ctx.setVariable("issuedDate", null);
+                ctx.setVariable("issuedTime", null);
+                ctx.setVariable("issuerName", "-");
+                ctx.setVariable("message", "Certificate hash is required.");
+                String html = templateEngine.process("verify/verify-cert", ctx);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.TEXT_HTML)
+                        .body(html);
+            }
+            throw new ApplicationObjectNotFoundException("Certificate hash is required");
+        }
+        // Some clients/decoders treat '+' as space in query strings; Base64 hashes require '+'.
+        rawHash = rawHash.trim().replace(' ', '+');
+        // IMPORTANT: don't use URLDecoder here; it converts '+' to space which breaks Base64 hashes.
+        final String decodedHash = UriUtils.decode(rawHash, StandardCharsets.UTF_8);
+        log.debug("Verifying certificate with hash: {}", decodedHash);
+
+        try {
+            // If a browser is calling this endpoint, return an HTML verification page.
+            // Otherwise, return JSON response for API clients.
+            if (wantsHtml) {
+                var certOpt = certificateService.verifyCertificateByHash(decodedHash);
+                if (certOpt.isEmpty()) {
+                    var ctx = new Context();
+                    ctx.setVariable("verified", false);
+                    ctx.setVariable("certificate", null);
+                    ctx.setVariable("certificateHtml", null);
+                    ctx.setVariable("hash", decodedHash);
+                    ctx.setVariable("issuedDate", null);
+                    ctx.setVariable("issuedTime", null);
+                    ctx.setVariable("issuerName", "-");
+                    ctx.setVariable("message", "No issued certificate was found for this hash.");
+                    String html = templateEngine.process("verify/verify-cert", ctx);
+                    return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                            .contentType(MediaType.TEXT_HTML)
+                            .body(html);
+                }
+
+                var certificate = certOpt.get();
+                var templateVersion = templateService.findVersionById(certificate.getTemplateVersionId())
+                        .orElseThrow(() -> new ApplicationObjectNotFoundException(
+                                "Template version " + certificate.getTemplateVersionId() + " not found"
+                        ));
+
+                // Render certificate template as HTML without verification footer/QR/link.
+                String certificateHtml = pdfGenerationService.renderHtml(templateVersion, certificate, false, false);
+
+                String issuedDate = certificate.getIssuedAt() != null ? certificate.getIssuedAt().format(VERIFY_ISSUED_DATE_FMT) : null;
+                String issuedTime = certificate.getIssuedAt() != null ? certificate.getIssuedAt().format(VERIFY_ISSUED_TIME_FMT) : null;
+
+                String issuerName = "-";
+                if (certificate.getIssuedByUser() != null) {
+                    var firstName = certificate.getIssuedByUser().getFirstName() != null ? certificate.getIssuedByUser().getFirstName() : "";
+                    var lastName = certificate.getIssuedByUser().getLastName() != null ? certificate.getIssuedByUser().getLastName() : "";
+                    var combined = (firstName + " " + lastName).trim();
+                    if (!combined.isBlank()) {
+                        issuerName = combined;
+                    } else if (certificate.getIssuedByUser().getEmail() != null && !certificate.getIssuedByUser().getEmail().isBlank()) {
+                        issuerName = parseNameFromEmail(certificate.getIssuedByUser().getEmail());
+                    }
+                } else if (certificate.getIssuedBy() != null) {
+                    issuerName = certificate.getIssuedBy().toString();
+                }
+
+                var ctx = new Context();
+                ctx.setVariable("verified", true);
+                ctx.setVariable("certificate", certificate);
+                ctx.setVariable("certificateHtml", certificateHtml);
+                ctx.setVariable("hash", decodedHash);
+                ctx.setVariable("issuedDate", issuedDate);
+                ctx.setVariable("issuedTime", issuedTime);
+                ctx.setVariable("issuerName", issuerName);
+                String html = templateEngine.process("verify/verify-cert", ctx);
+
+                return ResponseEntity.ok()
+                        .contentType(MediaType.TEXT_HTML)
+                        .body(html);
+            }
+
+            var certificate = certificateService.verifyCertificateByHash(decodedHash)
+                    .orElseThrow(() -> new ApplicationObjectNotFoundException(
+                            "Certificate with hash " + decodedHash + " not found or invalid"
+                    ));
+
+            var response = mapToDTO(certificate);
+            var unifiedResponse = Response.success(
+                    "Certificate verified successfully",
+                    response
+            );
+            return ResponseEntity.ok(unifiedResponse);
+        } finally {
+            // verifyCertificateByHash searches across schemas; ensure we don't leak tenant context.
+            tenantService.clearTenantContext();
+        }
+    }
+
+    private static String parseNameFromEmail(String email) {
+        String local = email;
+        int at = local.indexOf('@');
+        if (at > 0) local = local.substring(0, at);
+        local = local.replaceAll("[^a-zA-Z0-9._-]", " ");
+        var parts = local.split("[._\\-\\s]+");
+        var sb = new StringBuilder();
+        for (var p : parts) {
+            if (p == null || p.isBlank()) continue;
+            String word = p.substring(0, 1).toUpperCase(Locale.ENGLISH) + p.substring(1).toLowerCase(Locale.ENGLISH);
+            if (!sb.isEmpty()) sb.append(' ');
+            sb.append(word);
+        }
+        return sb.isEmpty() ? email : sb.toString();
     }
 
     /**

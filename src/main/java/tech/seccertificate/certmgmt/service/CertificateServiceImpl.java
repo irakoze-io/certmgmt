@@ -21,10 +21,12 @@ import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
 import tech.seccertificate.certmgmt.repository.CertificateRepository;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
 
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import org.springframework.web.util.UriUtils;
 
 /**
  * Implementation of CertificateService.
@@ -648,6 +650,9 @@ public class CertificateServiceImpl implements CertificateService {
             log.warn("Hash verification failed: hash is null or empty");
             return Optional.empty();
         }
+        // Defensive normalization: some URL decoders turn '+' into space.
+        // Base64 hashes can include '+', so convert spaces back.
+        hash = hash.trim().replace(' ', '+');
 
         // Get all active customers to search their tenant schemas
         var customers = customerService.findActiveCustomers();
@@ -738,10 +743,10 @@ public class CertificateServiceImpl implements CertificateService {
                         "Certificate hash not found for certificate ID: " + certificateId
                 ));
 
-        // Build verification URL: /api/certificates/verify/{hash}
+        // Build verification URL. Hash is Base64 and may contain '/', so it must not be placed in the path.
         String hash = certificateHash.getHashValue();
         String baseUrl = getBaseUrl();
-        return baseUrl + "/api/certificates/verify/" + hash;
+        return baseUrl + "/api/certificates/verify?hash=" + UriUtils.encodeQueryParam(hash, StandardCharsets.UTF_8);
     }
 
     /**
