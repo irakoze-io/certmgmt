@@ -29,7 +29,7 @@ class TemplateVersionControllerIntegrationTest extends BaseIntegrationTest {
         var uniqueName = UUID.randomUUID().toString()
                 .replaceAll("-", "")
                 .replaceAll("[0-9]", "");
-        testCustomer = createTestCustomer("Test Customer", "test.example.com", uniqueName);
+        testCustomer = createTestCustomer("Test Customer", "test." + System.currentTimeMillis() + ".com", uniqueName);
         setTenantContext(testCustomer.getId());
     }
 
@@ -75,6 +75,6 @@ class TemplateVersionControllerIntegrationTest extends BaseIntegrationTest {
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$").isArray());
+                .andExpect(jsonPath("$.data").isArray());
     }
 }

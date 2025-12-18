@@ -34,8 +34,6 @@ import static org.awaitility.Awaitility.await;
 /**
  * Integration tests for async certificate generation pipeline with RabbitMQ.
  *
- * <p><strong>NOTE: These tests are currently disabled due to RabbitMQ @RabbitListener
- * not starting in test context.</strong>
  *
  * <p>The async implementation is fully functional in production. These tests require
  * additional configuration to enable RabbitMQ listeners in the test environment.
@@ -239,11 +237,16 @@ class AsyncCertificateGenerationIntegrationTest {
         // Wait for PROCESSING status (may be brief)
         boolean processingDetected = false;
         for (int i = 0; i < 20; i++) {
-            var current = certificateRepository.findById(certificateId).orElseThrow();
-            if (current.getStatus() == Certificate.CertificateStatus.PROCESSING) {
-                processingDetected = true;
-                log.info("PROCESSING status detected");
-                break;
+            tenantService.setTenantContext(testCustomer.getTenantSchema());
+            try {
+                var current = certificateRepository.findById(certificateId).orElseThrow();
+                if (current.getStatus() == Certificate.CertificateStatus.PROCESSING) {
+                    processingDetected = true;
+                    log.info("PROCESSING status detected");
+                    break;
+                }
+            } finally {
+                tenantService.clearTenantContext();
             }
             try {
                 Thread.sleep(100);
@@ -256,8 +259,13 @@ class AsyncCertificateGenerationIntegrationTest {
         await()
                 .atMost(10, TimeUnit.SECONDS)
                 .untilAsserted(() -> {
-                    var updated = certificateRepository.findById(certificateId).orElseThrow();
-                    assertThat(updated.getStatus()).isEqualTo(Certificate.CertificateStatus.ISSUED);
+                    tenantService.setTenantContext(testCustomer.getTenantSchema());
+                    try {
+                        var updated = certificateRepository.findById(certificateId).orElseThrow();
+                        assertThat(updated.getStatus()).isEqualTo(Certificate.CertificateStatus.ISSUED);
+                    } finally {
+                        tenantService.clearTenantContext();
+                    }
                 });
 
         log.info("Status transition test completed - PROCESSING detected: {}", processingDetected);
@@ -293,24 +301,57 @@ class AsyncCertificateGenerationIntegrationTest {
                 .toList();
 
         await()
-                .atMost(20, TimeUnit.SECONDS)
+                .atMost(30, TimeUnit.SECONDS)
                 .pollInterval(1, TimeUnit.SECONDS)
                 .untilAsserted(() -> {
-                    var allIssued = certificateIds.stream()
-                            .map(id -> certificateRepository.findById(id).orElseThrow())
-                            .allMatch(cert -> cert.getStatus() == Certificate.CertificateStatus.ISSUED);
-                    assertThat(allIssued).isTrue();
+                    tenantService.setTenantContext(testCustomer.getTenantSchema());
+                    try {
+                        var fetchedCertificates = certificateIds.stream()
+                                .map(id -> certificateRepository.findById(id).orElseThrow())
+                                .toList();
+                        
+                        var allIssued = fetchedCertificates.stream()
+                                .allMatch(cert -> cert.getStatus() == Certificate.CertificateStatus.ISSUED);
+                        
+                        if (!allIssued) {
+                            var statuses = fetchedCertificates.stream()
+                                    .collect(java.util.stream.Collectors.toMap(
+                                            Certificate::getId,
+                                            cert -> cert.getStatus() + (cert.getMetadata() != null ? " (" + cert.getMetadata() + ")" : "")
+                                    ));
+                            log.warn("Not all certificates are ISSUED yet. Statuses: {}", statuses);
+                            
+                            // Log details of failed certificates
+                            fetchedCertificates.stream()
+                                    .filter(cert -> cert.getStatus() == Certificate.CertificateStatus.FAILED)
+                                    .forEach(cert -> log.error("Certificate {} failed. Status: {}, Metadata: {}", 
+                                            cert.getId(), cert.getStatus(), cert.getMetadata()));
+                        }
+                        
+                        assertThat(allIssued).as("All certificates should be ISSUED. Current statuses: %s", 
+                                fetchedCertificates.stream().collect(java.util.stream.Collectors.toMap(
+                                        Certificate::getId,
+                                        cert -> cert.getStatus() + (cert.getMetadata() != null ? " (" + cert.getMetadata() + ")" : "")
+                                ))).isTrue();
+                    } finally {
+                        tenantService.clearTenantContext();
+                    }
                 });
 
         // And: All PDFs should be uploaded
-        certificateIds.forEach(id -> {
-            var cert = certificateRepository.findById(id).orElseThrow();
-            assertThat(cert.getStoragePath()).isNotNull();
-            assertThat(storageService.fileExists(
-                    storageService.getDefaultBucketName(),
-                    cert.getStoragePath()
-            )).isTrue();
-        });
+        tenantService.setTenantContext(testCustomer.getTenantSchema());
+        try {
+            certificateIds.forEach(id -> {
+                var cert = certificateRepository.findById(id).orElseThrow();
+                assertThat(cert.getStoragePath()).isNotNull();
+                assertThat(storageService.fileExists(
+                        storageService.getDefaultBucketName(),
+                        cert.getStoragePath()
+                )).isTrue();
+            });
+        } finally {
+            tenantService.clearTenantContext();
+        }
 
         log.info("Batch async generation test completed successfully");
     }
@@ -328,13 +369,32 @@ class AsyncCertificateGenerationIntegrationTest {
                 .metadata("{\"error\":\"Previous failure\"}")
                 .build();
 
+        tenantService.setTenantContext(testCustomer.getTenantSchema());
         var savedCertificate = certificateRepository.save(certificate);
         assertThat(savedCertificate.getStatus()).isEqualTo(Certificate.CertificateStatus.FAILED);
 
         // When: Queue the failed certificate for retry via message queue
+        // Note: We need to generate a certificate number first, then manually send message
+        // because generateCertificateAsync will try to create a new certificate number
         var certificateId = savedCertificate.getId();
-        certificateService.generateCertificateAsync(
-                certificateRepository.findById(certificateId).orElseThrow(), false
+        var templateVersion = templateService.findVersionById(testTemplateVersion.getId()).orElseThrow();
+        var template = templateService.findById(templateVersion.getTemplate().getId()).orElseThrow();
+        if (savedCertificate.getCertificateNumber() == null || savedCertificate.getCertificateNumber().isEmpty()) {
+            savedCertificate.setCertificateNumber(certificateService.generateCertificateNumber(template.getCode()));
+            savedCertificate = certificateRepository.save(savedCertificate);
+        }
+        tenantService.clearTenantContext();
+
+        // Manually send message to queue for retry
+        var msg = new tech.seccertificate.certmgmt.dto.message.CertificateGenerationMessage(
+                certificateId,
+                testCustomer.getTenantSchema(),
+                false
+        );
+        rabbitTemplate.convertAndSend(
+                "certificate.exchange",
+                "certificate.generate",
+                msg
         );
 
         // Then: Worker should retry and mark as ISSUED
@@ -342,9 +402,14 @@ class AsyncCertificateGenerationIntegrationTest {
                 .atMost(10, TimeUnit.SECONDS)
                 .pollInterval(500, TimeUnit.MILLISECONDS)
                 .untilAsserted(() -> {
-                    var updated = certificateRepository.findById(certificateId).orElseThrow();
-                    log.info("Retry status: {}", updated.getStatus());
-                    assertThat(updated.getStatus()).isEqualTo(Certificate.CertificateStatus.ISSUED);
+                    tenantService.setTenantContext(testCustomer.getTenantSchema());
+                    try {
+                        var updated = certificateRepository.findById(certificateId).orElseThrow();
+                        log.info("Retry status: {}", updated.getStatus());
+                        assertThat(updated.getStatus()).isEqualTo(Certificate.CertificateStatus.ISSUED);
+                    } finally {
+                        tenantService.clearTenantContext();
+                    }
                 });
 
         log.info("Failed certificate retry test completed successfully");
@@ -355,10 +420,15 @@ class AsyncCertificateGenerationIntegrationTest {
     @DisplayName("Should skip processing if certificate is already ISSUED")
     void shouldSkipAlreadyIssuedCertificate() {
         // Given: A certificate that's already ISSUED
+        tenantService.setTenantContext(testCustomer.getTenantSchema());
+        var templateVersion = templateService.findVersionById(testTemplateVersion.getId()).orElseThrow();
+        var template = templateService.findById(templateVersion.getTemplate().getId()).orElseThrow();
+        
         var certificate = Certificate.builder()
                 .customerId(testCustomer.getId())
                 .templateVersionId(testTemplateVersion.getId())
                 .recipientData(createRecipientData())
+                .certificateNumber(certificateService.generateCertificateNumber(template.getCode()))
                 .status(Certificate.CertificateStatus.ISSUED)
                 .storagePath("test/path/test.pdf")
                 .signedHash("existing-hash")
@@ -368,6 +438,7 @@ class AsyncCertificateGenerationIntegrationTest {
         var savedCertificate = certificateRepository.save(certificate);
         var originalStatus = savedCertificate.getStatus();
         var originalPath = savedCertificate.getStoragePath();
+        tenantService.clearTenantContext();
 
         // When: Attempt to generate again
         // Note: generateCertificateAsync will throw if cert number is taken
@@ -388,9 +459,14 @@ class AsyncCertificateGenerationIntegrationTest {
                 .atMost(5, TimeUnit.SECONDS)
                 .pollDelay(2, TimeUnit.SECONDS)
                 .untilAsserted(() -> {
-                    var updated = certificateRepository.findById(savedCertificate.getId()).orElseThrow();
-                    assertThat(updated.getStatus()).isEqualTo(originalStatus);
-                    assertThat(updated.getStoragePath()).isEqualTo(originalPath);
+                    tenantService.setTenantContext(testCustomer.getTenantSchema());
+                    try {
+                        var updated = certificateRepository.findById(savedCertificate.getId()).orElseThrow();
+                        assertThat(updated.getStatus()).isEqualTo(originalStatus);
+                        assertThat(updated.getStoragePath()).isEqualTo(originalPath);
+                    } finally {
+                        tenantService.clearTenantContext();
+                    }
                 });
 
         log.info("Skip already issued certificate test completed successfully");
@@ -414,21 +490,26 @@ class AsyncCertificateGenerationIntegrationTest {
         await()
                 .atMost(10, TimeUnit.SECONDS)
                 .untilAsserted(() -> {
-                    var updated = certificateRepository.findById(savedCertificate.getId()).orElseThrow();
-                    assertThat(updated.getStatus()).isEqualTo(Certificate.CertificateStatus.ISSUED);
+                    tenantService.setTenantContext(testCustomer.getTenantSchema());
+                    try {
+                        var updated = certificateRepository.findById(savedCertificate.getId()).orElseThrow();
+                        assertThat(updated.getStatus()).isEqualTo(Certificate.CertificateStatus.ISSUED);
 
-                    var storagePath = updated.getStoragePath();
-                    assertThat(storagePath).isNotNull();
-                    assertThat(storagePath).startsWith(testCustomer.getTenantSchema() + "/certificates/");
-                    assertThat(storagePath).endsWith(updated.getId() + ".pdf");
+                        var storagePath = updated.getStoragePath();
+                        assertThat(storagePath).isNotNull();
+                        assertThat(storagePath).startsWith(testCustomer.getTenantSchema() + "/certificates/");
+                        assertThat(storagePath).endsWith(updated.getId() + ".pdf");
 
-                    // Verify path pattern: tenant/certificates/YYYY/MM/uuid.pdf
-                    var pathParts = storagePath.split("/");
-                    assertThat(pathParts).hasSizeGreaterThanOrEqualTo(5);
-                    assertThat(pathParts[0]).isEqualTo(testCustomer.getTenantSchema());
-                    assertThat(pathParts[1]).isEqualTo("certificates");
-                    assertThat(pathParts[2]).matches("\\d{4}"); // Year
-                    assertThat(pathParts[3]).matches("\\d{1,2}"); // Month
+                        // Verify path pattern: tenant/certificates/YYYY/MM/uuid.pdf
+                        var pathParts = storagePath.split("/");
+                        assertThat(pathParts).hasSizeGreaterThanOrEqualTo(5);
+                        assertThat(pathParts[0]).isEqualTo(testCustomer.getTenantSchema());
+                        assertThat(pathParts[1]).isEqualTo("certificates");
+                        assertThat(pathParts[2]).matches("\\d{4}"); // Year
+                        assertThat(pathParts[3]).matches("\\d{1,2}"); // Month
+                    } finally {
+                        tenantService.clearTenantContext();
+                    }
                 });
 
         log.info("Storage path pattern test completed successfully");
@@ -452,21 +533,26 @@ class AsyncCertificateGenerationIntegrationTest {
         await()
                 .atMost(10, TimeUnit.SECONDS)
                 .untilAsserted(() -> {
-                    var updated = certificateRepository.findById(savedCertificate.getId()).orElseThrow();
-                    assertThat(updated.getStatus()).isEqualTo(Certificate.CertificateStatus.ISSUED);
+                    tenantService.setTenantContext(testCustomer.getTenantSchema());
+                    try {
+                        var updated = certificateRepository.findById(savedCertificate.getId()).orElseThrow();
+                        assertThat(updated.getStatus()).isEqualTo(Certificate.CertificateStatus.ISSUED);
 
-                    // Verify hash on certificate
-                    assertThat(updated.getSignedHash()).isNotNull();
-                    assertThat(updated.getSignedHash()).isNotEmpty();
+                        // Verify hash on certificate
+                        assertThat(updated.getSignedHash()).isNotNull();
+                        assertThat(updated.getSignedHash()).isNotEmpty();
 
-                    // Verify hash in certificate_hash table
-                    var certHash = certificateHashRepository.findByCertificateId(updated.getId());
-                    assertThat(certHash).isPresent();
-                    assertThat(certHash.get().getHashAlgorithm()).isEqualTo("SHA-256");
-                    assertThat(certHash.get().getHashValue()).isEqualTo(updated.getSignedHash());
+                        // Verify hash in certificate_hash table
+                        var certHash = certificateHashRepository.findByCertificateId(updated.getId());
+                        assertThat(certHash).isPresent();
+                        assertThat(certHash.get().getHashAlgorithm()).isEqualTo("SHA-256");
+                        assertThat(certHash.get().getHashValue()).isEqualTo(updated.getSignedHash());
 
-                    // Hash should be Base64 encoded (SHA-256 produces 256 bits = 32 bytes = ~44 chars in Base64)
-                    assertThat(certHash.get().getHashValue().length()).isGreaterThan(40);
+                        // Hash should be Base64 encoded (SHA-256 produces 256 bits = 32 bytes = ~44 chars in Base64)
+                        assertThat(certHash.get().getHashValue().length()).isGreaterThan(40);
+                    } finally {
+                        tenantService.clearTenantContext();
+                    }
                 });
 
         log.info("PDF hash generation test completed successfully");

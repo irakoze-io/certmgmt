@@ -118,7 +118,6 @@ public class SecurityConfig {
                 "http://localhost:5050",
                 "http://127.0.0.1:5050",
                 "https://certmanager-six.vercel.app",
-                "https://certmanager-51szoafvd-eracodes-projects.vercel.app",
                 appBaseUrl
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
