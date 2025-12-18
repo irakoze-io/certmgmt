@@ -1,49 +1,59 @@
 package tech.seccertificate.certmgmt.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.NotNull;
-import org.springframework.stereotype.Service;
-import org.thymeleaf.TemplateEngine;
-import org.thymeleaf.context.Context;
-import org.thymeleaf.templatemode.TemplateMode;
-import tech.seccertificate.certmgmt.entity.Certificate;
-import tech.seccertificate.certmgmt.entity.TemplateVersion;
-import tech.seccertificate.certmgmt.exception.PdfGenerationException;
-import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
-import tech.seccertificate.certmgmt.service.StorageService;
-
-import jakarta.annotation.PostConstruct;
-
-import javax.imageio.ImageIO;
 import java.io.ByteArrayOutputStream;
 import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
+import javax.imageio.ImageIO;
+
+import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.web.util.UriUtils;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.context.Context;
+import org.thymeleaf.templatemode.TemplateMode;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
+
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import tech.seccertificate.certmgmt.entity.Certificate;
+import tech.seccertificate.certmgmt.entity.TemplateVersion;
+import tech.seccertificate.certmgmt.exception.PdfGenerationException;
+import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
+
 /**
  * Implementation of PdfGenerationService.
- * Uses Thymeleaf for HTML template rendering and OpenHTMLtoPDF for PDF conversion.
+ * Uses Thymeleaf for HTML template rendering and OpenHTMLtoPDF for PDF
+ * conversion.
  *
- * <p>This service supports:
+ * <p>
+ * This service supports:
  * <ul>
- *   <li>Thymeleaf template syntax (th:text, th:utext, etc.)</li>
- *   <li>Simple variable replacement ({{variableName}})</li>
- *   <li>CSS style injection</li>
- *   <li>Recipient data from JSON</li>
- *   <li>Certificate metadata and fields</li>
+ * <li>Thymeleaf template syntax (th:text, th:utext, etc.)</li>
+ * <li>Simple variable replacement ({{variableName}})</li>
+ * <li>CSS style injection</li>
+ * <li>Recipient data from JSON</li>
+ * <li>Certificate metadata and fields</li>
  * </ul>
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class PdfGenerationServiceImpl implements PdfGenerationService {
+
+    @Value("${app.base-url}")
+    private String appBaseUrl;
 
     private final TemplateEngine templateEngine;
     private final ObjectMapper objectMapper;
@@ -69,7 +79,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
     }
 
     @Override
-    public ByteArrayOutputStream generatePdf(TemplateVersion templateVersion, Certificate certificate, boolean includeVerificationFooter) {
+    public ByteArrayOutputStream generatePdf(TemplateVersion templateVersion, Certificate certificate,
+                                             boolean includeVerificationFooter) {
         log.info("Generating PDF for certificate ID: {}, Template Version ID: {}, includeFooter: {}",
                 certificate.getId(), templateVersion.getId(), includeVerificationFooter);
 
@@ -104,17 +115,27 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
 
     @Override
     public String renderHtml(TemplateVersion templateVersion, Certificate certificate) {
-        return renderHtml(templateVersion, certificate, true);
+        return renderHtml(templateVersion, certificate, true, true);
     }
 
     @Override
-    public String renderHtml(TemplateVersion templateVersion, Certificate certificate, boolean includeVerificationFooter) {
-        log.debug("Rendering HTML for certificate ID: {}, includeFooter: {}", certificate.getId(), includeVerificationFooter);
+    public String renderHtml(TemplateVersion templateVersion, Certificate certificate,
+                             boolean includeVerificationFooter) {
+        return renderHtml(templateVersion, certificate, includeVerificationFooter, true);
+    }
+
+    @Override
+    public String renderHtml(TemplateVersion templateVersion,
+                             Certificate certificate,
+                             boolean includeVerificationFooter,
+                             boolean includeVerificationData) {
+        log.debug("Rendering HTML for certificate ID: {}, includeFooter: {}", certificate.getId(),
+                includeVerificationFooter);
 
         try {
             var recipientData = parseRecipientData(certificate.getRecipientData());
 
-            var context = createTemplateContext(certificate, templateVersion, recipientData);
+            var context = createTemplateContext(certificate, templateVersion, recipientData, includeVerificationData);
 
             var htmlTemplate = templateVersion.getHtmlContent();
             if (htmlTemplate == null || htmlTemplate.trim().isEmpty()) {
@@ -191,7 +212,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
             var certificateHash = certificateHashOpt.get();
             var hash = certificateHash.getHashValue();
             var baseUrl = getBaseUrl();
-            var verificationUrl = baseUrl + "/api/certificates/verify/" + hash;
+            var verificationUrl = baseUrl + "/api/certificates/verify?hash="
+                    + UriUtils.encodeQueryParam(hash, StandardCharsets.UTF_8);
 
             // Generate QR code
             String qrCodeDataUri;
@@ -203,12 +225,34 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
             }
 
             // Generate footer HTML
-            var footerHtml = generateVerificationFooterHtml(verificationUrl, qrCodeDataUri);
+            var footerHtml = generateVerificationFooterHtml(
+                    verificationUrl,
+                    qrCodeDataUri,
+                    certificate.getCertificateNumber() != null ? certificate.getCertificateNumber() : "",
+                    formatIssuedDateForFooter(certificate.getIssuedAt()));
 
             // Append footer
-            if (html.contains("</body>")) {
-                return html.replace("</body>", footerHtml + "\n</body>");
+            // Append footer
+            // Try to insert inside the main container (last div) if possible
+            int bodyIndex = html.lastIndexOf("</body>");
+            if (bodyIndex != -1) {
+                int lastDivIndex = html.lastIndexOf("</div>", bodyIndex);
+                if (lastDivIndex != -1) {
+                    // Check for content between last div and body end (ignoring whitespace)
+                    String trailingContent = html.substring(lastDivIndex + 6, bodyIndex);
+                    if (trailingContent.trim().isEmpty()) {
+                        // Insert before the last closing div
+                        return new StringBuilder(html)
+                                .insert(lastDivIndex, "\n" + footerHtml)
+                                .toString();
+                    }
+                }
+                // Fallback: insert before body end
+                return new StringBuilder(html)
+                        .insert(bodyIndex, "\n" + footerHtml)
+                        .toString();
             } else if (html.contains("</html>")) {
+                // If no body tag but html tag exists
                 return html.replace("</html>", footerHtml + "\n</html>");
             } else {
                 return html + "\n" + footerHtml;
@@ -224,7 +268,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
      */
     private Context createTemplateContext(Certificate certificate,
                                           TemplateVersion templateVersion,
-                                          Map<String, Object> recipientData) {
+                                          Map<String, Object> recipientData,
+                                          boolean includeVerificationData) {
         var context = new Context();
 
         // Recipient data (parsed from JSON)
@@ -249,8 +294,7 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
             try {
                 var metadata = objectMapper.readValue(
                         certificate.getMetadata(),
-                        objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class)
-                );
+                        objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class));
                 context.setVariable("metadata", metadata);
             } catch (Exception e) {
                 log.warn("Failed to parse certificate metadata: {}", e.getMessage());
@@ -266,8 +310,11 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         context.setVariable("currentTime", formatTime(now));
         context.setVariable("currentDateTime", formatDateTime(now));
 
-        // Add certificate hash and QR code for verification (if hash exists)
-        addVerificationDataToContext(context, certificate);
+        // Add certificate hash and QR code for verification (if requested and hash
+        // exists)
+        if (includeVerificationData) {
+            addVerificationDataToContext(context, certificate);
+        }
 
         // Note: Download URL is not included in PDF generation to avoid inconsistencies
         // Download URLs should be generated on-demand via API endpoints
@@ -287,7 +334,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
                 var certificateHash = certificateHashOpt.get();
                 var hash = certificateHash.getHashValue();
                 var baseUrl = getBaseUrl();
-                var verificationUrl = baseUrl + "/api/certificates/verify/" + hash;
+                var verificationUrl = baseUrl + "/api/certificates/verify?hash="
+                        + UriUtils.encodeQueryParam(hash, StandardCharsets.UTF_8);
 
                 // Add hash to context
                 context.setVariable("certificateHash", hash);
@@ -329,7 +377,6 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         }
     }
 
-
     /**
      * Get base URL for generating verification URLs.
      * Uses configuration property or defaults to localhost:8080.
@@ -340,6 +387,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         if (baseUrl == null || baseUrl.isEmpty()) {
             baseUrl = System.getProperty("app.base-url");
         }
+        if (baseUrl == null || baseUrl.isEmpty())
+            baseUrl = appBaseUrl;
         if (baseUrl == null || baseUrl.isEmpty()) {
             baseUrl = "http://localhost:8080";
         }
@@ -350,7 +399,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
     /**
      * Process HTML template with Thymeleaf or simple variable replacement.
      *
-     * <p>For Thymeleaf templates, we register the template content in our cache
+     * <p>
+     * For Thymeleaf templates, we register the template content in our cache
      * and then process it using Thymeleaf. For simple templates, we use basic
      * variable replacement.
      */
@@ -384,7 +434,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
 
     /**
      * Replace simple variables in HTML template (for non-Thymeleaf templates).
-     * Supports {{variableName}}, {{recipient.fieldName}}, and {{fieldName}} (auto-resolved from recipient) syntax.
+     * Supports {{variableName}}, {{recipient.fieldName}}, and {{fieldName}}
+     * (auto-resolved from recipient) syntax.
      */
     private String replaceSimpleVariables(@NotNull String html, Context context) {
 
@@ -394,7 +445,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
 
         var result = html;
 
-        // First, replace top-level context variables (but skip Map objects like recipient/metadata)
+        // First, replace top-level context variables (but skip Map objects like
+        // recipient/metadata)
         for (Map.Entry<String, Object> entry : variables.entrySet()) {
             var varName = entry.getKey();
             var value = entry.getValue();
@@ -442,7 +494,8 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
             }
         }
 
-        // Finally, replace any remaining {{fieldName}} by auto-resolving from recipient first, then metadata
+        // Finally, replace any remaining {{fieldName}} by auto-resolving from recipient
+        // first, then metadata
         // This allows templates to use {{name}} instead of {{recipient.name}}
         if (recipient != null) {
             for (Map.Entry<String, Object> entry : recipient.entrySet()) {
@@ -481,8 +534,7 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         try {
             Map<String, Object> parsed = objectMapper.readValue(
                     recipientDataJson,
-                    objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class)
-            );
+                    objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class));
             log.debug("Successfully parsed recipient data: {} fields - {}", parsed.size(), parsed.keySet());
             return parsed;
         } catch (Exception e) {
@@ -500,6 +552,16 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
             return "";
         }
         return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+    }
+
+    /**
+     * Format issue date for verification footer (dd-MMM-yyyy).
+     */
+    private String formatIssuedDateForFooter(LocalDateTime dateTime) {
+        if (dateTime == null) {
+            return "";
+        }
+        return dateTime.format(DateTimeFormatter.ofPattern("dd-MMM-yyyy", Locale.ENGLISH));
     }
 
     /**
@@ -542,10 +604,12 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
             }
         } else if (html.contains("<html>")) {
             // HTML tag exists but no head, create head with meta charset and style
-            return html.replace("<html>", "<html><head><meta charset=\"UTF-8\" /><style>\n" + trimmedCss + "\n</style></head>");
+            return html.replace("<html>",
+                    "<html><head><meta charset=\"UTF-8\" /><style>\n" + trimmedCss + "\n</style></head>");
         } else {
             // No HTML structure, wrap with proper HTML structure
-            return "<!DOCTYPE html><html><head><meta charset=\"UTF-8\" /><style>\n" + trimmedCss + "\n</style></head><body>\n" + html + "\n</body></html>";
+            return "<!DOCTYPE html><html><head><meta charset=\"UTF-8\" /><style>\n" + trimmedCss
+                    + "\n</style></head><body>\n" + html + "\n</body></html>";
         }
     }
 
@@ -566,8 +630,7 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         try {
             Map<String, Object> settings = objectMapper.readValue(
                     settingsJson,
-                    objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class)
-            );
+                    objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class));
 
             if (settings == null || settings.isEmpty()) {
                 return html;
@@ -681,11 +744,12 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
 
     /**
      * Automatically append verification footer to all certificates.
-     * The footer includes QR code and verification URL for certificate verification.
+     * The footer includes QR code and verification URL for certificate
+     * verification.
      * Only appends footer if the certificate has verification data (hash).
      *
-     * @param html The rendered HTML content
-     * @param context The Thymeleaf context containing template variables
+     * @param html        The rendered HTML content
+     * @param context     The Thymeleaf context containing template variables
      * @param certificate The certificate entity
      * @return HTML with verification footer appended
      */
@@ -703,7 +767,11 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
             var verificationUrl = verificationUrlObj.toString();
             var qrCodeImage = qrCodeImageObj.toString();
 
-            var footerHtml = generateVerificationFooterHtml(verificationUrl, qrCodeImage);
+            var footerHtml = generateVerificationFooterHtml(
+                    verificationUrl,
+                    qrCodeImage,
+                    certificate.getCertificateNumber() != null ? certificate.getCertificateNumber() : "",
+                    formatIssuedDateForFooter(certificate.getIssuedAt()));
 
             if (html.contains("</body>")) {
                 return html.replace("</body>", footerHtml + "\n</body>");
@@ -713,10 +781,11 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
                 return html + "\n" + footerHtml;
             }
         } catch (Exception e) {
-            log.warn("Failed to append verification footer for certificate {}, continuing without footer: {}", 
+            log.warn("Failed to append verification footer for certificate {}, continuing without footer: {}",
                     certificate.getId(), e.getMessage());
 
-            // Let the application continue without footer - certificate will still be generated
+            // Let the application continue without footer - certificate will still be
+            // generated
             return html;
         }
     }
@@ -725,32 +794,56 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
      * Generate HTML for verification footer.
      * Includes QR code image and verification URL text.
      *
-     * @param verificationUrl The verification URL
-     * @param qrCodeImage Base64 data URI of QR code image
+     * @param verificationUrl   The verification URL
+     * @param qrCodeImage       Base64 data URI of QR code image
+     * @param certificateNumber Certificate number to display
+     * @param issuedDate        Issue date (yyyy-MM-dd)
      * @return HTML string for verification footer
      */
-    private String generateVerificationFooterHtml(String verificationUrl, String qrCodeImage) {
+    private String generateVerificationFooterHtml(String verificationUrl,
+                                                  String qrCodeImage,
+                                                  String certificateNumber,
+                                                  String issuedDate) {
         return """
-                <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #e0e0e0; text-align: center; font-family: Arial, sans-serif; font-size: 12px; color: #666;">
-                    <div style="margin-bottom: 15px;">
-                        <span style="font-weight: bold; color: #333;">Scan to Verify</span>
-                    </div>
-                    <div style="margin-bottom: 15px;">
-                        <img src="%s" alt="QR Code" style="width: 150px; height: 150px; display: block; margin: 0 auto;" />
-                    </div>
-                    <div style="margin-top: 10px; color: #555;">
-                        <span>or visit </span>
-                        <a href="%s" style="color: #0066cc; text-decoration: none; word-break: break-all;">%s</a>
-                    </div>
+                <!-- Verification block: flows directly after certificate content, inside the black border -->
+                <div style="margin-top: 20px; font-family: Arial, sans-serif;">
+                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 0 0 10px 0;" />
+                    <table style="width: 100%%; border-collapse: collapse;">
+                        <tr>
+                            <td style="vertical-align: bottom; padding: 0; text-align: left;">
+                                <div style="font-size: 11px; color: #334155; font-weight: 600; margin-top: 4px;">
+                                    Certificate #: <span style="font-weight: 700; color: #0f172a;">%s</span>
+                                </div>
+                                <div style="font-size: 11px; color: #334155; font-weight: 600; margin-bottom: 4px;">
+                                    Issued: <span style="font-weight: 700; color: #0f172a;">%s</span>
+                                </div>
+                                <div style="font-size: 10px; color: #64748b; line-height: 1.15; max-width: 400px;">
+                                    Verify at: <a href="%s" style="color: #1d4ed8; text-decoration: none;">%s</a>
+                                </div>
+                            </td>
+                            <td style="vertical-align: bottom; text-align: right; padding: 0;">
+                                <div style="display: inline-block; padding: 0; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff; overflow: hidden;">
+                                    <img src="%s" alt="QR Code" style="width: 140px; height: 140px; display: block;" />
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
                 </div>
-                """.formatted(qrCodeImage, verificationUrl, verificationUrl);
+                """
+                .formatted(
+                        certificateNumber != null && !certificateNumber.isBlank() ? certificateNumber : "-",
+                        issuedDate != null && !issuedDate.isBlank() ? issuedDate : "-",
+                        verificationUrl,
+                        verificationUrl,
+                        qrCodeImage
+                );
     }
 
     /**
      * Apply PDF settings from template version to PDF builder.
      * Supports common PDF settings like pageSize, orientation, margins, etc.
      *
-     * @param builder The PDF renderer builder
+     * @param builder         The PDF renderer builder
      * @param templateVersion The template version containing settings
      */
     @SuppressWarnings("unchecked")
@@ -763,8 +856,7 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
         try {
             Map<String, Object> settings = objectMapper.readValue(
                     templateVersion.getSettings(),
-                    objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class)
-            );
+                    objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Object.class));
 
             if (settings == null || settings.isEmpty()) {
                 return;

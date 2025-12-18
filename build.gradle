@@ -1,3 +1,5 @@
+import org.springframework.boot.gradle.tasks.run.BootRun
+
 plugins {
     id 'java'
     id 'org.springframework.boot' version '4.0.0'
@@ -120,7 +122,11 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
     // Fail the build if tests fail
-    failFast = false
+    failFast = true
+
+    // Keep tests deterministic: disable background scheduled jobs unless a test explicitly enables them.
+    systemProperty 'spring.task.scheduling.enabled', 'false'
+    systemProperty 'app.scheduling.certificate-preview-cleanup.enabled', 'false'
 
     // Show test output
     testLogging {
@@ -139,6 +145,17 @@ tasks.named('bootRun') {
     // dependsOn test
 
     // Or use: ./gradlew bootRun -x test to skip tests for faster development
+}
+
+// bootTestRun (Spring Boot Gradle plugin) runs the app using the test source set.
+// Use an ephemeral port by default to avoid local port collisions (e.g. 8080 already in use).
+tasks.named('bootTestRun', BootRun) {
+    if (!System.getProperty('spring.profiles.active')) {
+        systemProperty 'spring.profiles.active', 'test'
+    }
+    if (!System.getProperty('server.port')) {
+        systemProperty 'server.port', '0'
+    }
 }
 
 // Custom task: bootRunWithTests - explicitly runs tests before bootRun

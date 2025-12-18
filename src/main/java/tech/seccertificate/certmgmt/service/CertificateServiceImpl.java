@@ -3,6 +3,7 @@ package tech.seccertificate.certmgmt.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -20,10 +21,12 @@ import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
 import tech.seccertificate.certmgmt.repository.CertificateRepository;
 import tech.seccertificate.certmgmt.repository.CustomerRepository;
 
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import org.springframework.web.util.UriUtils;
 
 /**
  * Implementation of CertificateService.
@@ -38,6 +41,8 @@ import java.util.*;
 @RequiredArgsConstructor
 public class CertificateServiceImpl implements CertificateService {
 
+    @Value("${app.base-url}")
+    private String appBaseUrl;
     private static final String PDF_CONTENT_TYPE = "application/pdf";
 
     private final CertificateRepository certificateRepository;
@@ -645,6 +650,9 @@ public class CertificateServiceImpl implements CertificateService {
             log.warn("Hash verification failed: hash is null or empty");
             return Optional.empty();
         }
+        // Defensive normalization: some URL decoders turn '+' into space.
+        // Base64 hashes can include '+', so convert spaces back.
+        hash = hash.trim().replace(' ', '+');
 
         // Get all active customers to search their tenant schemas
         var customers = customerService.findActiveCustomers();
@@ -735,10 +743,10 @@ public class CertificateServiceImpl implements CertificateService {
                         "Certificate hash not found for certificate ID: " + certificateId
                 ));
 
-        // Build verification URL: /api/certificates/verify/{hash}
+        // Build verification URL. Hash is Base64 and may contain '/', so it must not be placed in the path.
         String hash = certificateHash.getHashValue();
         String baseUrl = getBaseUrl();
-        return baseUrl + "/api/certificates/verify/" + hash;
+        return baseUrl + "/api/certificates/verify?hash=" + UriUtils.encodeQueryParam(hash, StandardCharsets.UTF_8);
     }
 
     /**
@@ -752,6 +760,8 @@ public class CertificateServiceImpl implements CertificateService {
         if (baseUrl == null || baseUrl.isEmpty()) {
             baseUrl = System.getProperty("app.base-url");
         }
+
+        if (baseUrl == null || baseUrl.isEmpty()) baseUrl = appBaseUrl;
         if (baseUrl == null || baseUrl.isEmpty()) {
             baseUrl = "http://localhost:8080";
         }
