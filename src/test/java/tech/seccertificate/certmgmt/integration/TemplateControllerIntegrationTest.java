@@ -68,15 +68,17 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
                 .andDo(print())
                 .andExpect(status().isCreated())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.id").exists())
-                .andExpect(jsonPath("$.name").value("Test Template"))
-                .andExpect(jsonPath("$.code").value(uniqueCode))
-                .andExpect(jsonPath("$.customerId").value(testCustomer.getId()))
+                .andExpect(jsonPath("$.data.id").exists())
+                .andExpect(jsonPath("$.data.name").value("Test Template"))
+                .andExpect(jsonPath("$.data.code").value(uniqueCode))
+                .andExpect(jsonPath("$.data.customerId").value(testCustomer.getId()))
                 .andExpect(header().exists("Location"));
 
         // Verify template was created
         var responseBody = result.andReturn().getResponse().getContentAsString();
-        var createdTemplate = objectMapper.readValue(responseBody, TemplateResponse.class);
+        var trTree = objectMapper.readTree(responseBody).get("data");
+
+        var createdTemplate = objectMapper.treeToValue(trTree, TemplateResponse.class);
         
         assertThat(createdTemplate.getId()).isNotNull();
     }
@@ -102,9 +104,9 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.id").value(createdTemplate.getId()))
-                .andExpect(jsonPath("$.name").value("Test Template"))
-                .andExpect(jsonPath("$.code").value(uniqueCode));
+                .andExpect(jsonPath("$.data.id").value(createdTemplate.getId()))
+                .andExpect(jsonPath("$.data.name").value("Test Template"))
+                .andExpect(jsonPath("$.data.code").value(uniqueCode));
     }
 
     @Test
@@ -144,8 +146,8 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$").isArray())
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data.length()").value(2));
     }
 
     @Test
@@ -169,8 +171,8 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.code").value(uniqueCode))
-                .andExpect(jsonPath("$.name").value("Test Template"));
+                .andExpect(jsonPath("$.data.code").value(uniqueCode))
+                .andExpect(jsonPath("$.data.name").value("Test Template"));
     }
 
     @Test
@@ -216,9 +218,9 @@ class TemplateControllerIntegrationTest extends BaseIntegrationTest {
                 .andDo(print())
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.id").value(createdTemplate.getId()))
-                .andExpect(jsonPath("$.name").value("Updated Name"))
-                .andExpect(jsonPath("$.description").value("Updated description"));
+                .andExpect(jsonPath("$.data.id").value(createdTemplate.getId()))
+                .andExpect(jsonPath("$.data.name").value("Updated Name"))
+                .andExpect(jsonPath("$.data.description").value("Updated description"));
     }
 
     @Test
