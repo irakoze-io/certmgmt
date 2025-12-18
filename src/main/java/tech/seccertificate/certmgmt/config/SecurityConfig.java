@@ -1,5 +1,10 @@
 package tech.seccertificate.certmgmt.config;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+
+import javax.crypto.spec.SecretKeySpec;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,16 +21,16 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import jakarta.servlet.http.HttpServletRequest;
 import tech.seccertificate.certmgmt.security.JwtAuthenticationConverter;
 import tech.seccertificate.certmgmt.security.SecurityExceptionHandlers;
-
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 
 
 @Configuration
@@ -84,6 +89,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/customers").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
+                        .bearerTokenResolver(publicEndpointBearerTokenResolver())
                         .jwt(jwt -> jwt
                                 .decoder(jwtDecoder())
                                 .jwtAuthenticationConverter(jwtAuthenticationConverter()))
@@ -141,6 +147,70 @@ public class SecurityConfig {
                 jwtSecret.getBytes(StandardCharsets.UTF_8),
                 "HmacSHA256");
         return NimbusJwtDecoder.withSecretKey(secretKey).build();
+    }
+
+    /**
+     * Creates a BearerTokenResolver that skips token extraction for public endpoints.
+     *
+     * <p>This prevents the OAuth2 Resource Server filter from attempting to validate
+     * malformed Bearer tokens on public endpoints (like /auth/login), which would
+     * otherwise cause 401 errors before authorization rules are checked.
+     *
+     * <p>For public endpoints, this resolver returns null, which tells the
+     * OAuth2 Resource Server filter to skip token processing entirely.
+     *
+     * @return BearerTokenResolver that skips public endpoints
+     */
+    @Bean
+    BearerTokenResolver publicEndpointBearerTokenResolver() {
+        final BearerTokenResolver defaultResolver = new DefaultBearerTokenResolver();
+        
+        return new BearerTokenResolver() {
+            @Override
+            public String resolve(HttpServletRequest request) {
+                // If this is a public endpoint, return null to skip token processing
+                if (isPublicEndpoint(request)) {
+                    return null;
+                }
+                // For protected endpoints, use the default resolver
+                return defaultResolver.resolve(request);
+            }
+            
+            /**
+             * Check if the request is to a public endpoint that should not require authentication.
+             * This matches the public endpoints defined in authorizeHttpRequests above.
+             */
+            private boolean isPublicEndpoint(HttpServletRequest request) {
+                String path = request.getRequestURI();
+                String method = request.getMethod();
+
+                // Actuator, docs, and error endpoints
+                if (path.startsWith("/actuator/") ||
+                    path.startsWith("/v3/api-docs/") ||
+                    path.startsWith("/swagger-ui/") ||
+                    path.startsWith("/scalar/") ||
+                    path.equals("/scalar") ||
+                    path.equals("/error") ||
+                    path.equals("/favicon.ico")) {
+                    return true;
+                }
+
+                // Public API endpoints
+                if (HttpMethod.POST.matches(method) && path.equals("/auth/login")) {
+                    return true;
+                }
+                if (HttpMethod.POST.matches(method) && path.equals("/auth/users")) {
+                    return true;
+                }
+                if (HttpMethod.POST.matches(method) && path.equals("/api/customers")) {
+                    return true;
+                }
+                if (HttpMethod.GET.matches(method) && path.startsWith("/api/certificates/verify/")) {
+                    return true;
+                }
+                return HttpMethod.OPTIONS.matches(method); // CORS preflight
+            }
+        };
     }
 
     /**
