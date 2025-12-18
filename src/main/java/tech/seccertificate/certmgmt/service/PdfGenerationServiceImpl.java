@@ -1,23 +1,5 @@
 package tech.seccertificate.certmgmt.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.jetbrains.annotations.NotNull;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.thymeleaf.TemplateEngine;
-import org.thymeleaf.context.Context;
-import org.thymeleaf.templatemode.TemplateMode;
-import tech.seccertificate.certmgmt.entity.Certificate;
-import tech.seccertificate.certmgmt.entity.TemplateVersion;
-import tech.seccertificate.certmgmt.exception.PdfGenerationException;
-import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
-
-import jakarta.annotation.PostConstruct;
-
-import javax.imageio.ImageIO;
 import java.io.ByteArrayOutputStream;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
@@ -25,10 +7,30 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+
+import javax.imageio.ImageIO;
+
+import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriUtils;
-import java.util.Locale;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.context.Context;
+import org.thymeleaf.templatemode.TemplateMode;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
+
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import tech.seccertificate.certmgmt.entity.Certificate;
+import tech.seccertificate.certmgmt.entity.TemplateVersion;
+import tech.seccertificate.certmgmt.exception.PdfGenerationException;
+import tech.seccertificate.certmgmt.repository.CertificateHashRepository;
 
 /**
  * Implementation of PdfGenerationService.
@@ -78,7 +80,7 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
 
     @Override
     public ByteArrayOutputStream generatePdf(TemplateVersion templateVersion, Certificate certificate,
-            boolean includeVerificationFooter) {
+                                             boolean includeVerificationFooter) {
         log.info("Generating PDF for certificate ID: {}, Template Version ID: {}, includeFooter: {}",
                 certificate.getId(), templateVersion.getId(), includeVerificationFooter);
 
@@ -118,15 +120,15 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
 
     @Override
     public String renderHtml(TemplateVersion templateVersion, Certificate certificate,
-            boolean includeVerificationFooter) {
+                             boolean includeVerificationFooter) {
         return renderHtml(templateVersion, certificate, includeVerificationFooter, true);
     }
 
     @Override
     public String renderHtml(TemplateVersion templateVersion,
-            Certificate certificate,
-            boolean includeVerificationFooter,
-            boolean includeVerificationData) {
+                             Certificate certificate,
+                             boolean includeVerificationFooter,
+                             boolean includeVerificationData) {
         log.debug("Rendering HTML for certificate ID: {}, includeFooter: {}", certificate.getId(),
                 includeVerificationFooter);
 
@@ -265,9 +267,9 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
      * Create Thymeleaf context with all available variables.
      */
     private Context createTemplateContext(Certificate certificate,
-            TemplateVersion templateVersion,
-            Map<String, Object> recipientData,
-            boolean includeVerificationData) {
+                                          TemplateVersion templateVersion,
+                                          Map<String, Object> recipientData,
+                                          boolean includeVerificationData) {
         var context = new Context();
 
         // Recipient data (parsed from JSON)
@@ -799,43 +801,42 @@ public class PdfGenerationServiceImpl implements PdfGenerationService {
      * @return HTML string for verification footer
      */
     private String generateVerificationFooterHtml(String verificationUrl,
-            String qrCodeImage,
-            String certificateNumber,
-            String issuedDate) {
+                                                  String qrCodeImage,
+                                                  String certificateNumber,
+                                                  String issuedDate) {
         return """
                 <!-- Verification block: flows directly after certificate content, inside the black border -->
                 <div style="margin-top: 20px; font-family: Arial, sans-serif;">
-                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 0 0 20px 0;" />
-                    <div style="padding: 0 14px;">
-                        <table style="width: 100%%; border-collapse: collapse;">
-                            <tr>
-                                <td style="vertical-align: bottom; padding: 0;">
-                                    <div style="font-size: 11px; color: #334155; font-weight: 600; margin-bottom: 2px;">
-                                        Issued: <span style="font-weight: 700; color: #0f172a;">%s</span>
-                                    </div>
-                                    <div style="font-size: 11px; color: #334155; font-weight: 600;">
-                                        Certificate #: <span style="font-weight: 700; color: #0f172a;">%s</span>
-                                    </div>
-                                </td>
-                                <td style="vertical-align: bottom; text-align: right; padding: 0;">
-                                    <div style="display: inline-block; padding: 6px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff;">
-                                        <img src="%s" alt="QR Code" style="width: 110px; height: 110px; display: block;" />
-                                    </div>
-                                </td>
-                            </tr>
-                        </table>
-                        <div style="margin-top: 8px; font-size: 8px; color: #64748b; line-height: 1.15; word-break: break-all;">
-                            <a href="%s" style="color: #1d4ed8; text-decoration: none;">%s</a>
-                        </div>
-                    </div>
+                    <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 0 0 10px 0;" />
+                    <table style="width: 100%%; border-collapse: collapse;">
+                        <tr>
+                            <td style="vertical-align: bottom; padding: 0; text-align: left;">
+                                <div style="font-size: 11px; color: #334155; font-weight: 600; margin-top: 4px;">
+                                    Certificate #: <span style="font-weight: 700; color: #0f172a;">%s</span>
+                                </div>
+                                <div style="font-size: 11px; color: #334155; font-weight: 600; margin-bottom: 4px;">
+                                    Issued: <span style="font-weight: 700; color: #0f172a;">%s</span>
+                                </div>
+                                <div style="font-size: 10px; color: #64748b; line-height: 1.15; max-width: 400px;">
+                                    Verify at: <a href="%s" style="color: #1d4ed8; text-decoration: none;">%s</a>
+                                </div>
+                            </td>
+                            <td style="vertical-align: bottom; text-align: right; padding: 0;">
+                                <div style="display: inline-block; padding: 0; border: 1px solid #e2e8f0; border-radius: 8px; background: #ffffff; overflow: hidden;">
+                                    <img src="%s" alt="QR Code" style="width: 140px; height: 140px; display: block;" />
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
                 </div>
                 """
                 .formatted(
-                        issuedDate != null && !issuedDate.isBlank() ? issuedDate : "-",
                         certificateNumber != null && !certificateNumber.isBlank() ? certificateNumber : "-",
-                        qrCodeImage,
+                        issuedDate != null && !issuedDate.isBlank() ? issuedDate : "-",
                         verificationUrl,
-                        verificationUrl);
+                        verificationUrl,
+                        qrCodeImage
+                );
     }
 
     /**
