@@ -50,7 +50,7 @@ public class CertificateGenerationWorker {
 
         try {
             // Using TransactionTemplate - transaction starts AFTER the setTenantContext call above
-            transactionTemplate.executeWithoutResult(_ -> {
+            transactionTemplate.executeWithoutResult(status -> {
                 try {
                     processCertificate(certificateId, tenantSchema, isPreview, channel, deliveryTag);
                 } catch (Exception e) {

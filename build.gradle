@@ -2,7 +2,7 @@ import org.springframework.boot.gradle.tasks.run.BootRun
 
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '4.0.0'
+    id 'org.springframework.boot' version '3.4.1'
     id 'io.spring.dependency-management' version '1.1.6'
     id 'org.asciidoctor.jvm.convert' version '4.0.3'
 }
@@ -13,7 +13,7 @@ description = 'A project for designing and implementing a secure system to defin
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
@@ -34,7 +34,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-integration'
-    implementation 'org.springframework.boot:spring-boot-starter-restclient'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
     // JWT Token Generation (using jjwt)
     implementation 'io.jsonwebtoken:jjwt-api:0.12.5'
     implementation 'io.jsonwebtoken:jjwt-impl:0.12.5'
@@ -44,7 +44,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
-    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    // Web MVC included via spring-boot-starter-web
     implementation 'org.springframework.boot:spring-boot-starter-security'
 
     // Jackson for JSON processing
@@ -59,13 +59,18 @@ dependencies {
     implementation 'org.springframework.integration:spring-integration-jpa'
 
     // Database
-    implementation 'org.springframework.boot:spring-boot-starter-liquibase'
+    implementation 'org.liquibase:liquibase-core'
     implementation 'org.projectlombok:lombok:1.18.38'
-    testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
-    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
-    testImplementation 'org.testcontainers:rabbitmq'
-    testImplementation 'org.testcontainers:postgresql'
     runtimeOnly 'org.postgresql:postgresql'
+    
+    // Testcontainers BOM (must come before testcontainer dependencies)
+    testImplementation platform('org.testcontainers:testcontainers-bom:1.19.8')
+    testImplementation 'org.testcontainers:testcontainers'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
+    testImplementation 'org.testcontainers:rabbitmq'
+    testImplementation 'org.testcontainers:minio'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 
     // PDF Generation
     implementation 'com.openhtmltopdf:openhtmltopdf-pdfbox:1.0.10'
@@ -96,24 +101,11 @@ dependencies {
 
     // Testing
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.boot:spring-boot-restdocs'
-    testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
-    testImplementation 'org.springframework.boot:spring-boot-starter-amqp-test'
-    testImplementation 'org.springframework.boot:spring-boot-starter-data-jdbc-test'
-    testImplementation 'org.springframework.boot:spring-boot-starter-restclient-test'
-    testImplementation 'org.springframework.boot:spring-boot-starter-thymeleaf-test'
-    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testImplementation 'org.springframework.integration:spring-integration-test'
     testImplementation 'org.springframework.restdocs:spring-restdocs-mockmvc'
     testImplementation 'org.springframework.restdocs:spring-restdocs-asciidoctor'
-
-    // Testcontainers for integration testing
-    // Using version 1.19.x which is compatible with Spring Boot 4.0.0
-    testImplementation platform('org.testcontainers:testcontainers-bom:1.19.8')
-    testImplementation 'org.testcontainers:testcontainers'
-    testImplementation 'org.testcontainers:postgresql'
-    testImplementation 'org.testcontainers:junit-jupiter'
-    testImplementation 'org.testcontainers:minio'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     // Awaitility for async testing
     testImplementation 'org.awaitility:awaitility:4.2.0'
